@@ -9,10 +9,11 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8080
+    base_url: str = "http://localhost:8080"
     upload_dir: Path = Path("./uploads")
     data_dir: Path = Path("./data")
     max_file_size_mb: int = 59
-    otp_expiry_hours: int = 24
+    expiry_hours: int = 24
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
