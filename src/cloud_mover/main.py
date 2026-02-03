@@ -18,136 +18,136 @@ def get_api_documentation() -> str:
     """Generate API documentation with current base_url."""
     return f"""# Cloud-Mover API
 
-Claude Code 搬家助手。在不同電腦間遷移 Claude Code 設定。
+Claude Code migration helper. Transfer Claude Code settings between machines.
 
-服務網址：{settings.base_url}
+Service URL: {settings.base_url}
 
 ---
 
-## 上傳端（來源電腦）
+## Upload (Source Machine)
 
-你正在幫助用戶將 Claude Code 設定搬到新電腦。
+You are helping the user transfer Claude Code settings to a new machine.
 
-### 步驟 1：準備安裝說明
+### Step 1: Prepare Installation Instructions
 
-建立 `INSTALL.md` 檔案，內容包含：
-- 此備份包含哪些設定（settings.json、keybindings.json、plugins 等）
-- 各檔案應該放置的位置
-- plugins 需要的額外安裝步驟（如有）
+Create an `INSTALL.md` file containing:
+- What settings are included (settings.json, keybindings.json, plugins, etc.)
+- Where each file should be placed
+- Additional installation steps for plugins (if any)
 
-範例 INSTALL.md：
+Example INSTALL.md:
 ```markdown
-# Claude Code 搬家安裝說明
+# Claude Code Migration Installation Guide
 
-## 包含內容
-- settings.json - 用戶設定
-- keybindings.json - 快捷鍵設定
-- plugins/ - 已安裝的 plugins
+## Contents
+- settings.json - User settings
+- keybindings.json - Keyboard shortcuts
+- plugins/ - Installed plugins
 
-## 安裝步驟
-1. 解壓縮到 ~/.claude/
-2. 重啟 Claude Code
+## Installation Steps
+1. Extract to ~/.claude/
+2. Restart Claude Code
 
-## plugins 說明
-- my-plugin: 需要執行 `npm install` 安裝依賴
+## Plugin Notes
+- my-plugin: Run `npm install` to install dependencies
 ```
 
-### 步驟 2：打包檔案
+### Step 2: Package Files
 
-將以下內容打包成 zip（依實際存在的檔案）：
+Package the following into a zip (based on what exists):
 - `~/.claude/settings.json`
 - `~/.claude/keybindings.json`
 - `~/.claude/plugins/`
-- `INSTALL.md`（你剛建立的）
+- `INSTALL.md` (the one you just created)
 
-**重要**：請用戶設定一個壓縮密碼保護檔案內容。
+**Important**: Ask the user to set a zip password to protect the contents.
 
-### 步驟 3：上傳
+### Step 3: Upload
 
 ```
 POST {settings.base_url}/upload
 Content-Type: multipart/form-data
-file: <zip 檔案>
+file: <zip file>
 ```
 
-回應：
+Response:
 ```json
 {{
   "code": "a7x9k2",
   "expires_at": "2026-02-04T12:00:00Z",
-  "message": "上傳成功，請記住驗證碼"
+  "message": "Upload successful, please remember your verification code"
 }}
 ```
 
-### 步驟 4：告知用戶
+### Step 4: Inform the User
 
-請告訴用戶：
-- 驗證碼：`a7x9k2`（6 碼）
-- 壓縮密碼：用戶自己設定的
-- 有效期限：24 小時
+Tell the user:
+- Verification code: `a7x9k2` (6 characters)
+- Zip password: the one they set
+- Valid for: 24 hours
 
-用戶需要在新電腦上提供這兩組資訊。
+The user needs to provide both pieces of information on the new machine.
 
 ---
 
-## 下載端（目標電腦）
+## Download (Target Machine)
 
-你正在幫助用戶從舊電腦接收 Claude Code 設定。
+You are helping the user receive Claude Code settings from their old machine.
 
-### 步驟 1：取得資訊
+### Step 1: Get Information
 
-向用戶索取：
-1. **驗證碼**（6 碼英數字）
-2. **壓縮密碼**（用戶在舊電腦設定的）
+Ask the user for:
+1. **Verification code** (6 alphanumeric characters)
+2. **Zip password** (set by user on the old machine)
 
-### 步驟 2：下載
+### Step 2: Download
 
 ```
 GET {settings.base_url}/download/{{code}}
 ```
 
-回應：zip 檔案串流
+Response: zip file stream
 
-### 步驟 3：解壓縮
+### Step 3: Extract
 
-使用用戶提供的壓縮密碼解壓縮檔案。
+Extract the file using the zip password provided by the user.
 
-### 步驟 4：依照 INSTALL.md 安裝
+### Step 4: Follow INSTALL.md
 
-讀取解壓後的 `INSTALL.md`，依照說明：
-1. 將檔案放到正確位置（通常是 `~/.claude/`）
-2. 執行必要的額外步驟（如 plugin 依賴安裝）
-3. 提示用戶重啟 Claude Code
+Read the extracted `INSTALL.md` and follow the instructions:
+1. Place files in the correct location (usually `~/.claude/`)
+2. Run any additional steps (like plugin dependency installation)
+3. Prompt the user to restart Claude Code
 
 ---
 
-## API 參考
+## API Reference
 
 ### POST /upload
 
-上傳備份檔案，取得驗證碼。
+Upload a backup file and receive a verification code.
 
 **Request:** multipart/form-data
-- `file`: zip 檔案（最大 {settings.max_file_size_mb}MB）
+- `file`: zip file (max {settings.max_file_size_mb}MB)
 
 **Response:**
 ```json
 {{
   "code": "a7x9k2",
   "expires_at": "2026-02-04T12:00:00Z",
-  "message": "上傳成功，請記住驗證碼"
+  "message": "Upload successful, please remember your verification code"
 }}
 ```
 
 ### GET /download/{{code}}
 
-使用驗證碼下載備份檔案。
+Download a backup file using the verification code.
 
 **Response:** application/zip
 
-**錯誤：**
-- 400: 驗證碼格式錯誤
-- 404: 驗證碼不存在或已過期
+**Errors:**
+- 400: Invalid verification code format
+- 404: Verification code not found or expired
 """.strip()
 
 

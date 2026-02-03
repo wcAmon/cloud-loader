@@ -10,7 +10,7 @@ class UploadResponse(BaseModel):
 
     code: str = Field(min_length=6, max_length=6)
     expires_at: datetime
-    message: str = "上傳成功，請記住驗證碼"
+    message: str = "Upload successful, please remember your verification code"
 
 
 class ErrorResponse(BaseModel):

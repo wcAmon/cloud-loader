@@ -31,7 +31,7 @@ async def upload(
     if len(contents) > settings.max_file_size_bytes:
         raise HTTPException(
             status_code=400,
-            detail=f"檔案大小超過限制 ({settings.max_file_size_mb}MB)",
+            detail=f"File size exceeds limit ({settings.max_file_size_mb}MB)",
         )
 
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -56,14 +56,14 @@ def download(
 ):
     """Download a backup file using verification code."""
     if not is_valid_code(code):
-        raise HTTPException(status_code=400, detail="驗證碼格式錯誤")
+        raise HTTPException(status_code=400, detail="Invalid verification code format")
 
     backup = get_backup_by_code(session, code)
     if not backup:
-        raise HTTPException(status_code=404, detail="驗證碼不存在或已過期")
+        raise HTTPException(status_code=404, detail="Verification code not found or expired")
 
     if not os.path.exists(backup.file_path):
-        raise HTTPException(status_code=404, detail="備份檔案不存在")
+        raise HTTPException(status_code=404, detail="Backup file not found")
 
     return FileResponse(
         backup.file_path,

@@ -1,28 +1,30 @@
 # Cloud-Mover
 
-Claude Code 搬家助手 API 服務。
+[繁體中文](README.zh-TW.md) | English
 
-## 功能
+Claude Code migration helper API service.
 
-- 上傳備份檔案，取得 6 碼驗證碼
-- 使用驗證碼下載備份檔案
-- 24 小時後自動刪除（檔案 + 記錄）
+## Features
 
-## 隱私保護
+- Upload backup files and receive a 6-character verification code
+- Download backup files using the verification code
+- Auto-delete after 24 hours (files + records)
 
-- 伺服器不儲存壓縮密碼，只有用戶知道
-- 過期後完全刪除，不保留任何記錄
-- 驗證碼僅用於識別檔案，無法解密內容
+## Privacy
 
-## 安裝
+- Server does not store zip passwords - only the user knows it
+- Complete deletion after expiry - no records retained
+- Verification code only identifies the file - cannot decrypt contents
+
+## Installation
 
 ```bash
 uv sync
 ```
 
-## 設定
+## Configuration
 
-建立 `.env` 檔案：
+Create a `.env` file:
 
 ```env
 HOST=0.0.0.0
@@ -32,16 +34,20 @@ MAX_FILE_SIZE_MB=59
 EXPIRY_HOURS=24
 ```
 
-## 啟動
+## Run
 
 ```bash
 uv run cloud-mover
 ```
 
-## API 端點
+## API Endpoints
 
-| 端點 | 方法 | 說明 |
-|------|------|------|
-| `/` | GET | API 使用說明（給 Claude Code 閱讀） |
-| `/upload` | POST | 上傳備份，回傳驗證碼 |
-| `/download/{code}` | GET | 使用驗證碼下載備份 |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | API documentation (for Claude Code to read) |
+| `/upload` | POST | Upload backup, returns verification code |
+| `/download/{code}` | GET | Download backup using verification code |
+
+## License
+
+MIT
