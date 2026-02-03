@@ -1,11 +1,11 @@
-"""Cleanup service for expired backups."""
+"""Cleanup service for expired backups and templates."""
 
 import os
 from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from cloud_mover.models import Backup
+from cloud_mover.models import Backup, Template
 
 
 def cleanup_expired_backups(session: Session) -> int:
@@ -22,6 +22,23 @@ def cleanup_expired_backups(session: Session) -> int:
             except OSError:
                 pass
         session.delete(backup)
+        count += 1
+
+    if count > 0:
+        session.commit()
+
+    return count
+
+
+def cleanup_expired_templates(session: Session) -> int:
+    """Delete expired templates. Returns count of deleted items."""
+    now = datetime.now(timezone.utc)
+
+    expired = session.exec(select(Template).where(Template.expires_at < now)).all()
+
+    count = 0
+    for template in expired:
+        session.delete(template)
         count += 1
 
     if count > 0:

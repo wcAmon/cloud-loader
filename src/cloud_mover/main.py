@@ -11,7 +11,7 @@ from sqlmodel import Session
 from cloud_mover.config import settings
 from cloud_mover.database import engine, init_db
 from cloud_mover.routers import api
-from cloud_mover.services.cleanup import cleanup_expired_backups
+from cloud_mover.services.cleanup import cleanup_expired_backups, cleanup_expired_templates
 
 
 def get_api_documentation() -> str:
@@ -366,7 +366,9 @@ cp -r ~/restore/projects/[name] /path/user/chose/
 
 ## API Reference
 
-### POST /upload
+### Migration Endpoints
+
+#### POST /upload
 Upload backup file, receive verification code.
 
 **Request:** `multipart/form-data`, field `file` (max {settings.max_file_size_mb}MB)
@@ -376,14 +378,71 @@ Upload backup file, receive verification code.
 {{"code": "abc123", "expires_at": "2024-01-01T12:00:00Z", "message": "..."}}
 ```
 
-### GET /download/{{code}}
+#### GET /download/{{code}}
 Download backup using verification code.
 
 **Response:** `application/zip`
 
-**Errors:**
+---
+
+### Template Sharing Endpoints
+
+Share CLAUDE.md or AGENTS.md templates with a simple code.
+
+#### POST /templates
+Share a template and receive a verification code.
+
+**Request:**
+```json
+{{
+  "template_type": "CLAUDE.md",
+  "title": "FastAPI Backend Template",
+  "description": "Best practices for FastAPI projects",
+  "content": "# Project\\n\\n## Commands\\n..."
+}}
+```
+
+- `template_type`: `"CLAUDE.md"` or `"AGENTS.md"`
+- `title`: Template name (max 100 chars)
+- `description`: Optional description (max 500 chars)
+- `content`: Markdown content (max {settings.max_template_size_kb}KB)
+
+**Response:**
+```json
+{{"code": "xyz789", "expires_at": "2024-01-08T12:00:00Z", "message": "..."}}
+```
+
+**Expiry:** {settings.template_expiry_days} days
+
+#### GET /templates/{{code}}
+Get template metadata and content as JSON.
+
+**Response:**
+```json
+{{
+  "code": "xyz789",
+  "template_type": "CLAUDE.md",
+  "title": "FastAPI Backend Template",
+  "description": "Best practices for FastAPI projects",
+  "content": "# Project\\n...",
+  "content_size": 1234,
+  "created_at": "2024-01-01T12:00:00Z",
+  "expires_at": "2024-01-08T12:00:00Z",
+  "download_count": 5
+}}
+```
+
+#### GET /templates/{{code}}/raw
+Get raw template content as plain text (for direct file download).
+
+**Response:** `text/markdown` with `Content-Disposition: attachment`
+
+---
+
+### Errors
+
 - 404: Code not found or expired
-- 400: Invalid code format
+- 400: Invalid code format or request
 """.strip()
 
 
@@ -392,9 +451,12 @@ async def periodic_cleanup():
     while True:
         await asyncio.sleep(3600)
         with Session(engine) as session:
-            count = cleanup_expired_backups(session)
-            if count > 0:
-                print(f"Cleaned up {count} expired backups")
+            backup_count = cleanup_expired_backups(session)
+            template_count = cleanup_expired_templates(session)
+            if backup_count > 0:
+                print(f"Cleaned up {backup_count} expired backups")
+            if template_count > 0:
+                print(f"Cleaned up {template_count} expired templates")
 
 
 @asynccontextmanager
@@ -405,6 +467,7 @@ async def lifespan(app: FastAPI):
 
     with Session(engine) as session:
         cleanup_expired_backups(session)
+        cleanup_expired_templates(session)
 
     cleanup_task = asyncio.create_task(periodic_cleanup())
 
@@ -419,8 +482,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Cloud-Mover",
-    description="AI Assistant Migration Helper API",
-    version="0.3.0",
+    description="AI Assistant Migration & Template Sharing API",
+    version="0.4.0",
     lifespan=lifespan,
 )
 

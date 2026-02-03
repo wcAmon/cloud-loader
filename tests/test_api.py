@@ -115,3 +115,136 @@ def test_download_nonexistent_code(client: TestClient):
     """Download should return 404 for nonexistent code."""
     response = client.get("/download/abc123")
     assert response.status_code == 404
+
+
+# Template tests
+
+
+def test_share_template_returns_code(client: TestClient):
+    """Share template should return a 6-character code."""
+    response = client.post(
+        "/templates",
+        json={
+            "template_type": "CLAUDE.md",
+            "title": "Test Template",
+            "description": "A test template",
+            "content": "# Test\n\nThis is a test template.",
+        },
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "code" in data
+    assert len(data["code"]) == 6
+    assert data["code"].isalnum()
+    assert "expires_at" in data
+
+
+def test_share_template_agents_md(client: TestClient):
+    """Share template should accept AGENTS.md type."""
+    response = client.post(
+        "/templates",
+        json={
+            "template_type": "AGENTS.md",
+            "title": "Codex Template",
+            "content": "# Agents\n\nInstructions for Codex.",
+        },
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert len(data["code"]) == 6
+
+
+def test_share_template_invalid_type(client: TestClient):
+    """Share template should reject invalid template type."""
+    response = client.post(
+        "/templates",
+        json={
+            "template_type": "INVALID.md",
+            "title": "Invalid Template",
+            "content": "# Test",
+        },
+    )
+    assert response.status_code == 422  # Validation error
+
+
+def test_get_template_by_code(client: TestClient):
+    """Get template should return template data."""
+    # Create template
+    create_response = client.post(
+        "/templates",
+        json={
+            "template_type": "CLAUDE.md",
+            "title": "My Template",
+            "description": "Description here",
+            "content": "# Content\n\nHello world.",
+        },
+    )
+    code = create_response.json()["code"]
+
+    # Get template
+    get_response = client.get(f"/templates/{code}")
+    assert get_response.status_code == 200
+
+    data = get_response.json()
+    assert data["code"] == code
+    assert data["template_type"] == "CLAUDE.md"
+    assert data["title"] == "My Template"
+    assert data["description"] == "Description here"
+    assert "# Content" in data["content"]
+    assert data["download_count"] == 1
+
+
+def test_get_template_raw(client: TestClient):
+    """Get template raw should return plain text content."""
+    # Create template
+    content = "# My Template\n\nThis is the content."
+    create_response = client.post(
+        "/templates",
+        json={
+            "template_type": "CLAUDE.md",
+            "title": "Raw Test",
+            "content": content,
+        },
+    )
+    code = create_response.json()["code"]
+
+    # Get raw
+    raw_response = client.get(f"/templates/{code}/raw")
+    assert raw_response.status_code == 200
+    assert raw_response.text == content
+    assert "text/markdown" in raw_response.headers["content-type"]
+
+
+def test_get_template_invalid_code(client: TestClient):
+    """Get template should reject invalid code format."""
+    response = client.get("/templates/invalid")
+    assert response.status_code == 400
+
+
+def test_get_template_nonexistent(client: TestClient):
+    """Get template should return 404 for nonexistent code."""
+    response = client.get("/templates/abc123")
+    assert response.status_code == 404
+
+
+def test_template_download_count_increments(client: TestClient):
+    """Download count should increment on each access."""
+    # Create template
+    create_response = client.post(
+        "/templates",
+        json={
+            "template_type": "CLAUDE.md",
+            "title": "Count Test",
+            "content": "# Test",
+        },
+    )
+    code = create_response.json()["code"]
+
+    # Get template multiple times
+    client.get(f"/templates/{code}")
+    client.get(f"/templates/{code}")
+    response = client.get(f"/templates/{code}")
+
+    assert response.json()["download_count"] == 3

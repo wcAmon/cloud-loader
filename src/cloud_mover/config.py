@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     max_file_size_mb: int = 59
     expiry_hours: int = 24
+    template_expiry_days: int = 7
+    max_template_size_kb: int = 100
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
@@ -21,6 +23,11 @@ class Settings(BaseSettings):
     def max_file_size_bytes(self) -> int:
         """Return max file size in bytes."""
         return self.max_file_size_mb * 1024 * 1024
+
+    @property
+    def max_template_size_bytes(self) -> int:
+        """Return max template size in bytes."""
+        return self.max_template_size_kb * 1024
 
     @property
     def database_url(self) -> str:
