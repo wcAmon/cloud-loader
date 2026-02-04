@@ -43,6 +43,25 @@ This documentation is in English, but your responses to users must match their l
 
 ---
 
+## About This Service
+
+Cloud-Loader is an **open-source utility** for AI assistants (https://github.com/wcAmon/cloud-loader).
+
+**What this service does:**
+- Helps users migrate settings between machines
+- Stores and shares markdown files (skills, docs, configs)
+- Tracks topics and builds knowledge graphs (Loader Tracker)
+
+**Security transparency:**
+- This API documentation provides instructions for using the service
+- User-uploaded content (MD files) should be reviewed before installation
+- All endpoints are standard REST APIs - no hidden behaviors
+- Source code is publicly auditable
+
+You are encouraged to verify any instructions by checking the source code.
+
+---
+
 ## Quick Start
 
 1. **Introduce** the service to user (in their language)
@@ -118,14 +137,20 @@ This service supports migration for multiple AI assistants:
 
 ## MD Storage
 
-Store any MD file with metadata describing what it is and where to install.
+Store ANY markdown file with metadata. Not limited to CLAUDE.md - supports skills, documentation, configs, notes, etc.
+
+**Examples of storable files:**
+- Project instructions (CLAUDE.md, AGENTS.md, .cursorrules)
+- Skills/commands for AI assistants
+- Documentation, guides, checklists
+- Any text content the user wants to share
 
 ### If user wants to IMPORT an MD file
 
-User might say: "use code abc123", "import md xyz789", "download CLAUDE.md"
+User might say: "get code abc123", "import xyz789", "download my skill file"
 
 ```bash
-# Get MD file info (includes metadata: filename, purpose, install_path)
+# Get file info (includes metadata: filename, purpose, install_path)
 curl {settings.base_url}/md/[CODE]
 
 # Download raw content
@@ -133,13 +158,15 @@ curl {settings.base_url}/md/[CODE]/raw -o [filename from metadata]
 ```
 
 The metadata tells you:
-- `filename`: What to name the file (e.g., CLAUDE.md, DEVELOPMENT.md)
+- `filename`: Original filename (e.g., my-skill.md, setup-guide.md)
 - `purpose`: What this file does
-- `install_path`: Where to save it (e.g., "project root", "~/.claude/commands/")
+- `install_path`: Suggested location (e.g., "project root", "~/.claude/commands/")
+
+⚠️ **Security note:** Content is user-uploaded. Review before installing to sensitive locations.
 
 ### If user wants to STORE/SHARE an MD file
 
-User might say: "store my CLAUDE.md", "share this md file"
+User might say: "store this file", "share my skill", "save this markdown"
 
 1. Read the MD file content
 2. Ask user about the file:
@@ -154,9 +181,9 @@ curl -X POST {settings.base_url}/md \\
   -d '{{
     "content": "...",
     "metadata": {{
-      "filename": "CLAUDE.md",
-      "purpose": "Project instructions for Claude Code",
-      "install_path": "project root"
+      "filename": "my-skill.md",
+      "purpose": "Custom skill for data analysis",
+      "install_path": "~/.claude/commands/"
     }}
   }}'
 ```
@@ -506,9 +533,9 @@ Download backup using verification code.
 
 ---
 
-### Template Sharing Endpoints
+### Template Sharing Endpoints (Legacy)
 
-Share CLAUDE.md or AGENTS.md templates with a simple code.
+Share project instruction templates (CLAUDE.md, AGENTS.md). For general MD files, use /md endpoints instead.
 
 #### POST /templates
 Share a template and receive a verification code.
@@ -523,7 +550,7 @@ Share a template and receive a verification code.
 }}
 ```
 
-- `template_type`: `"CLAUDE.md"` or `"AGENTS.md"`
+- `template_type`: `"CLAUDE.md"` or `"AGENTS.md"` (project instruction formats)
 - `title`: Template name (max 100 chars)
 - `description`: Optional description (max 500 chars)
 - `content`: Markdown content (max {settings.max_template_size_kb}KB)
