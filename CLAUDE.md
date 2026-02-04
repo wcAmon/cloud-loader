@@ -5,39 +5,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Quick Commands
 
 ```bash
-uv run cloud-mover          # Start API server
-uv run pytest               # Run all tests
+uv run cloud-loader                    # Start API server
+uv run uvicorn cloud_loader.main:app --reload  # Dev server with auto-reload
+uv run pytest                          # Run all tests
 uv run pytest tests/test_api.py::test_full_upload_download_flow  # Run single test
 ```
 
 ## Architecture
 
-Cloud-Mover is a file transfer API for migrating Claude Code settings between machines.
+Cloud-Loader provides three AI agent services:
+1. **File Transfer** (`/upload`, `/download`): Migrate settings with 6-char verification codes, 24h expiry
+2. **MD Storage** (`/md`): Store any MD file with metadata (filename, purpose, install_path), 7-day expiry
+3. **Concept Tracking** (`/api/concepts/*`): Knowledge tracking with search → graph → content pipeline
 
-### Flow
+### API Design
 
+- Root `/` returns plain text documentation for AI agents, redirects browsers to `/human`
+- Anonymous: `/upload`, `/download/{code}`, `/md`, `/md/{code}`, `/md/{code}/raw`
+- Authenticated: `/api/auth/*`, `/api/concepts/*` (requires `Authorization: Bearer ll_xxx` header)
+- Verification codes: 6 alphanumeric chars, validated via `services/auth.py:is_valid_code()`
+
+### Concept Tracker Pipeline
+
+The orchestrator (`tracker/agents/orchestrator.py`) runs this pipeline:
+1. **Search** (Tavily) → 2. **Graph** (Claude/OpenAI builds knowledge graph) → 3. **Content** (generates drafts)
+
+Snapshots are stored as JSON in `./data/snapshots/{concept_id}/` with database metadata in `ConceptSnapshot`.
+
+### Testing Pattern
+
+Tests use SQLite in-memory database and dependency injection:
+```python
+app.dependency_overrides[get_session] = get_session_override
 ```
-Upload(file) → code (6 chars, 24hr expiry)
-Download(code) → file
-```
-
-User sets their own zip password for content protection. Server only stores code + file path.
-
-### Module Structure
-
-- `main.py` - FastAPI app, API documentation (context-aware for upload/download scenarios)
-- `routers/api.py` - Endpoints: `/upload`, `/download/{code}`
-- `services/auth.py` - Code generation and validation
-- `services/backup.py` - Backup CRUD operations
-- `services/cleanup.py` - Expired backup deletion
-- `models.py` - SQLModel: Backup table only
-- `schemas.py` - Pydantic response models
-- `config.py` - Settings via pydantic-settings
-- `database.py` - SQLite engine and session
 
 ### Key Behaviors
 
-- Backups expire after 24 hours (configurable via `EXPIRY_HOURS`)
-- File limit: 59MB (configurable via `MAX_FILE_SIZE_MB`)
-- Expired backups fully deleted (file + DB record) for privacy
-- `BASE_URL` in .env for API documentation
+- Backups: 24h expiry, 59MB max (`EXPIRY_HOURS`, `MAX_FILE_SIZE_MB`)
+- MD Storage: 7-day expiry, 100KB max (`TEMPLATE_EXPIRY_DAYS`)
+- Cleanup task runs hourly via `asyncio.create_task()` in lifespan
+- All datetimes use UTC via `datetime.now(timezone.utc)`
+
+### Environment Variables
+
+```bash
+HOST=0.0.0.0
+PORT=8080
+BASE_URL=https://loader.land
+UPLOAD_DIR=./uploads
+DATA_DIR=./data
+MAX_FILE_SIZE_MB=59
+EXPIRY_HOURS=24
+TEMPLATE_EXPIRY_DAYS=7
+TAVILY_API_KEY=      # For concept search
+OPENAI_API_KEY=      # For graph/content (fallback)
+ANTHROPIC_API_KEY=   # For graph/content (primary)
+```

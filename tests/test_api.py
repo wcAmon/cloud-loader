@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from cloud_mover.database import get_session
-from cloud_mover.main import app
+from cloud_loader.database import get_session
+from cloud_loader.main import app
 
 
 @pytest.fixture(name="session")
@@ -27,7 +27,7 @@ def session_fixture():
 @pytest.fixture(name="client")
 def client_fixture(session: Session, tmp_path):
     """Create a test client with dependency overrides."""
-    from cloud_mover import config
+    from cloud_loader import config
 
     original_upload_dir = config.settings.upload_dir
     config.settings.upload_dir = tmp_path / "uploads"
@@ -46,12 +46,34 @@ def client_fixture(session: Session, tmp_path):
 
 
 def test_root_returns_documentation(client: TestClient):
-    """Root endpoint should return API documentation."""
-    response = client.get("/")
+    """Root endpoint should return API documentation for non-browser clients."""
+    # Simulate curl/API client (Accept: */*)
+    response = client.get("/", headers={"Accept": "*/*"})
     assert response.status_code == 200
-    assert "Cloud-Mover API" in response.text
+    assert "Cloud-Loader API" in response.text
     assert "POST /upload" in response.text
     assert "GET /download" in response.text
+
+
+def test_root_redirects_browser(client: TestClient):
+    """Root endpoint should redirect browsers to /human."""
+    # Simulate browser (Accept: text/html first)
+    response = client.get(
+        "/",
+        headers={"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
+        follow_redirects=False
+    )
+    assert response.status_code == 302
+    assert response.headers["location"] == "/human"
+
+
+def test_human_page_returns_html(client: TestClient):
+    """Human page should return HTML with service information."""
+    response = client.get("/human")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Cloud-Loader" in response.text
+    assert "AI Assistant Services Platform" in response.text
 
 
 def test_upload_returns_code(client: TestClient):
@@ -72,7 +94,7 @@ def test_upload_returns_code(client: TestClient):
 
 def test_upload_rejects_large_file(client: TestClient):
     """Upload should reject files exceeding size limit."""
-    from cloud_mover import config
+    from cloud_loader import config
 
     original_max = config.settings.max_file_size_mb
     config.settings.max_file_size_mb = 0  # Set to 0 MB for test
@@ -117,18 +139,20 @@ def test_download_nonexistent_code(client: TestClient):
     assert response.status_code == 404
 
 
-# Template tests
+# MD Storage tests
 
 
-def test_share_template_returns_code(client: TestClient):
-    """Share template should return a 6-character code."""
+def test_store_md_returns_code(client: TestClient):
+    """Store MD should return a 6-character code."""
     response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "CLAUDE.md",
-            "title": "Test Template",
-            "description": "A test template",
-            "content": "# Test\n\nThis is a test template.",
+            "content": "# Test\n\nThis is a test MD file.",
+            "metadata": {
+                "filename": "CLAUDE.md",
+                "purpose": "Project instructions",
+                "install_path": "project root",
+            },
         },
     )
     assert response.status_code == 200
@@ -140,14 +164,17 @@ def test_share_template_returns_code(client: TestClient):
     assert "expires_at" in data
 
 
-def test_share_template_agents_md(client: TestClient):
-    """Share template should accept AGENTS.md type."""
+def test_store_md_various_filenames(client: TestClient):
+    """Store MD should accept various MD filenames."""
     response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "AGENTS.md",
-            "title": "Codex Template",
             "content": "# Agents\n\nInstructions for Codex.",
+            "metadata": {
+                "filename": "AGENTS.md",
+                "purpose": "Agent configuration",
+                "install_path": "~/.codex/",
+            },
         },
     )
     assert response.status_code == 200
@@ -156,95 +183,101 @@ def test_share_template_agents_md(client: TestClient):
     assert len(data["code"]) == 6
 
 
-def test_share_template_invalid_type(client: TestClient):
-    """Share template should reject invalid template type."""
+def test_store_md_missing_metadata(client: TestClient):
+    """Store MD should reject missing metadata."""
     response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "INVALID.md",
-            "title": "Invalid Template",
             "content": "# Test",
         },
     )
     assert response.status_code == 422  # Validation error
 
 
-def test_get_template_by_code(client: TestClient):
-    """Get template should return template data."""
-    # Create template
+def test_get_md_by_code(client: TestClient):
+    """Get MD should return MD data with metadata."""
+    # Create MD storage
     create_response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "CLAUDE.md",
-            "title": "My Template",
-            "description": "Description here",
             "content": "# Content\n\nHello world.",
+            "metadata": {
+                "filename": "DEVELOPMENT.md",
+                "purpose": "Development guidelines",
+                "install_path": "project root",
+            },
         },
     )
     code = create_response.json()["code"]
 
-    # Get template
-    get_response = client.get(f"/templates/{code}")
+    # Get MD
+    get_response = client.get(f"/md/{code}")
     assert get_response.status_code == 200
 
     data = get_response.json()
     assert data["code"] == code
-    assert data["template_type"] == "CLAUDE.md"
-    assert data["title"] == "My Template"
-    assert data["description"] == "Description here"
+    assert data["metadata"]["filename"] == "DEVELOPMENT.md"
+    assert data["metadata"]["purpose"] == "Development guidelines"
+    assert data["metadata"]["install_path"] == "project root"
     assert "# Content" in data["content"]
     assert data["download_count"] == 1
 
 
-def test_get_template_raw(client: TestClient):
-    """Get template raw should return plain text content."""
-    # Create template
-    content = "# My Template\n\nThis is the content."
+def test_get_md_raw(client: TestClient):
+    """Get MD raw should return plain text content."""
+    # Create MD storage
+    content = "# My File\n\nThis is the content."
     create_response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "CLAUDE.md",
-            "title": "Raw Test",
             "content": content,
+            "metadata": {
+                "filename": "TEST.md",
+                "purpose": "Test file",
+                "install_path": "anywhere",
+            },
         },
     )
     code = create_response.json()["code"]
 
     # Get raw
-    raw_response = client.get(f"/templates/{code}/raw")
+    raw_response = client.get(f"/md/{code}/raw")
     assert raw_response.status_code == 200
     assert raw_response.text == content
     assert "text/markdown" in raw_response.headers["content-type"]
 
 
-def test_get_template_invalid_code(client: TestClient):
-    """Get template should reject invalid code format."""
-    response = client.get("/templates/invalid")
+def test_get_md_invalid_code(client: TestClient):
+    """Get MD should reject invalid code format."""
+    response = client.get("/md/invalid")
     assert response.status_code == 400
 
 
-def test_get_template_nonexistent(client: TestClient):
-    """Get template should return 404 for nonexistent code."""
-    response = client.get("/templates/abc123")
+def test_get_md_nonexistent(client: TestClient):
+    """Get MD should return 404 for nonexistent code."""
+    response = client.get("/md/abc123")
     assert response.status_code == 404
 
 
-def test_template_download_count_increments(client: TestClient):
+def test_md_download_count_increments(client: TestClient):
     """Download count should increment on each access."""
-    # Create template
+    # Create MD storage
     create_response = client.post(
-        "/templates",
+        "/md",
         json={
-            "template_type": "CLAUDE.md",
-            "title": "Count Test",
             "content": "# Test",
+            "metadata": {
+                "filename": "COUNT.md",
+                "purpose": "Count test",
+                "install_path": "test",
+            },
         },
     )
     code = create_response.json()["code"]
 
-    # Get template multiple times
-    client.get(f"/templates/{code}")
-    client.get(f"/templates/{code}")
-    response = client.get(f"/templates/{code}")
+    # Get MD multiple times
+    client.get(f"/md/{code}")
+    client.get(f"/md/{code}")
+    response = client.get(f"/md/{code}")
 
     assert response.json()["download_count"] == 3

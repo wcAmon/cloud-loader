@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud-Loader | AI Assistant Services Platform</title>
+    <meta name="description" content="Migrate settings, store MD files, and track topics with Loader Tracker. Supports Claude Code, OpenClaw, Codex, and more.">
+    <meta name="keywords" content="AI, Claude Code, OpenClaw, Codex, migration, MD storage, Loader Tracker, topic tracking">
+    <meta name="author" content="Cloud-Loader">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Cloud-Loader | AI Assistant Services Platform">
+    <meta property="og:description" content="Migrate settings, store MD files, track topics with Loader Tracker">
+    <meta property="og:url" content="{{ base_url }}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Cloud-Loader">
+    <meta name="twitter:description" content="AI Assistant Services - Migration, MD Storage, Loader Tracker">
+
+    <!-- Canonical -->
+    <link rel="canonical" href="{{ base_url }}/human">
+
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☁️</text></svg>">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Cloud-Loader",
+        "url": "{{ base_url }}",
+        "description": "AI Assistant Services - File Migration, MD Storage, Loader Tracker",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any"
+    }
+    </script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwindcss.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand': '#6366f1',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold text-brand">☁️ Cloud-Loader</h1>
+            <p class="text-gray-600 mt-1">AI Assistant Services Platform</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 py-8">
+
+        <!-- AI Agent Alert - Top Priority -->
+        <section class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-6">
+            <p class="font-bold text-yellow-800 mb-2">🤖 AI AGENTS: DO NOT USE WEB BROWSING</p>
+            <p class="text-yellow-700 text-sm mb-2">This site is NOT indexed by search engines. Web browsing tools will fail.</p>
+            <p class="text-yellow-700 text-sm mb-2"><strong>Use HTTP fetch instead:</strong></p>
+            <code class="block bg-white rounded p-2 text-sm font-mono text-yellow-800">curl {{ base_url }}/api-docs</code>
+            <p class="text-yellow-600 text-xs mt-2">The /api-docs endpoint returns plain text documentation you can parse directly.</p>
+        </section>
+
+        <!-- Hero Section -->
+        <section class="bg-white rounded-lg shadow-md p-8 mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Use This Service Through Your AI Assistant</h2>
+            <p class="text-gray-600 mb-6">
+                Cloud-Loader is a service platform designed for AI assistants. Tell your AI assistant:
+            </p>
+
+            <div class="bg-gray-900 text-green-400 rounded-lg p-4 font-mono text-lg mb-4">
+                <span class="text-gray-500 select-none">$ </span>Help me migrate my settings using loader.land
+            </div>
+
+            <p class="text-sm text-gray-500">
+                Your AI assistant will read the API docs and guide you through the process.
+            </p>
+        </section>
+
+        <!-- Features -->
+        <section class="grid md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="text-3xl mb-3">📦</div>
+                <h3 class="text-lg font-semibold mb-2">Settings Migration</h3>
+                <p class="text-gray-600 text-sm">
+                    Migrate AI assistant settings from old machine to new machine. Password protected, auto-deleted after 24 hours.
+                </p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="text-3xl mb-3">📄</div>
+                <h3 class="text-lg font-semibold mb-2">MD Storage</h3>
+                <p class="text-gray-600 text-sm">
+                    Store any MD file (CLAUDE.md, skills, etc.) with metadata and install path. 6-char code, valid for 7 days.
+                </p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="text-3xl mb-3">🧠</div>
+                <h3 class="text-lg font-semibold mb-2">Loader Tracker</h3>
+                <p class="text-gray-600 text-sm">
+                    Auto-track topics, build knowledge graphs, generate tweets, video scripts, and article outlines.
+                </p>
+            </div>
+        </section>
+
+        <!-- Supported Tools -->
+        <section class="bg-white rounded-lg shadow-md p-8 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Supported AI Tools</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="py-2 pr-4">Tool</th>
+                            <th class="py-2 pr-4">Config File</th>
+                            <th class="py-2 pr-4 text-center">Migration</th>
+                            <th class="py-2 text-center">MD Storage</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600">
+                        <tr class="border-b">
+                            <td class="py-2 pr-4">Claude Code</td>
+                            <td class="py-2 pr-4 font-mono text-sm">CLAUDE.md</td>
+                            <td class="py-2 pr-4 text-center text-green-600">✓</td>
+                            <td class="py-2 text-center text-green-600">✓</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-2 pr-4">OpenClaw (Moltbot)</td>
+                            <td class="py-2 pr-4 font-mono text-sm">~/.openclaw/</td>
+                            <td class="py-2 pr-4 text-center text-green-600">✓</td>
+                            <td class="py-2 text-center text-gray-400">-</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-2 pr-4">Codex</td>
+                            <td class="py-2 pr-4 font-mono text-sm">AGENTS.md</td>
+                            <td class="py-2 pr-4 text-center text-green-600">✓</td>
+                            <td class="py-2 text-center text-green-600">✓</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-2 pr-4">GitHub Copilot</td>
+                            <td class="py-2 pr-4 font-mono text-sm">AGENTS.md</td>
+                            <td class="py-2 pr-4 text-center text-gray-400">-</td>
+                            <td class="py-2 text-center text-green-600">✓</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 pr-4">Cursor</td>
+                            <td class="py-2 pr-4 font-mono text-sm">.cursorrules</td>
+                            <td class="py-2 pr-4 text-center text-gray-400">-</td>
+                            <td class="py-2 text-center text-green-600">✓</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Quick Commands -->
+        <section class="bg-white rounded-lg shadow-md p-8 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Common Commands</h2>
+            <div class="space-y-4">
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Migrate settings to new machine:</p>
+                    <code class="block bg-gray-100 rounded p-3 text-sm">Help me migrate using loader.land</code>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Store an MD file:</p>
+                    <code class="block bg-gray-100 rounded p-3 text-sm">Store my CLAUDE.md to loader.land</code>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Get an MD file (need code):</p>
+                    <code class="block bg-gray-100 rounded p-3 text-sm">Get abc123 from loader.land</code>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-1">Track a topic with Loader Tracker:</p>
+                    <code class="block bg-gray-100 rounded p-3 text-sm">Track "AI Agents" updates using loader.land</code>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Agent Entry -->
+        <section class="bg-indigo-50 border border-indigo-200 rounded-lg p-6 mb-8">
+            <h3 class="font-semibold text-indigo-900 mb-2">🤖 AI Agent Entry Point</h3>
+            <p class="text-indigo-800 text-sm mb-3">
+                If you are an AI assistant (Claude Code, Codex, Copilot, etc.):
+            </p>
+            <div class="bg-white rounded p-3 text-sm font-mono text-indigo-700 mb-3">
+                <p class="text-indigo-500 text-xs mb-1"># Use HTTP fetch, NOT web browsing (site is not indexed)</p>
+                <p>curl {{ base_url }}/api-docs</p>
+            </div>
+            <p class="text-indigo-700 text-xs mb-2">
+                <strong>⚠️ Important:</strong> This site is not in search engines. Use <code>curl</code>, <code>fetch</code>, or HTTP request tools to access API docs.
+            </p>
+            <p class="text-indigo-700 text-xs">
+                <strong>Key features:</strong> Register for API key → Install loader-land skill → Use Loader Tracker
+            </p>
+        </section>
+
+        <!-- API Info -->
+        <section class="bg-gray-100 rounded-lg p-6 text-sm text-gray-600">
+            <h3 class="font-semibold mb-2">Developer Info</h3>
+            <p>
+                API Docs: <a href="{{ base_url }}" class="text-brand hover:underline">{{ base_url }}</a>
+                <span class="text-gray-400 ml-2">(access via curl or AI assistant)</span>
+            </p>
+            <p class="mt-1">
+                Source: <a href="https://github.com/wcAmon/cloud-loader" class="text-brand hover:underline" target="_blank" rel="noopener">github.com/wcAmon/cloud-loader</a>
+            </p>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t mt-12">
+        <div class="max-w-4xl mx-auto px-4 py-6 text-center text-gray-500 text-sm">
+            <p>© 2024 Cloud-Loader. MIT License.</p>
+        </div>
+    </footer>
+</body>
+</html>

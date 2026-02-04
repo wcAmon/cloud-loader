@@ -1,6 +1,6 @@
 """Tests for auth service."""
 
-from cloud_mover.services.auth import generate_code, is_valid_code
+from cloud_loader.services.auth import generate_code, is_valid_code
 
 
 def test_generate_code_length():

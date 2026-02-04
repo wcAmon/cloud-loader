@@ -1,7 +1,7 @@
 [project]
-name = "cloud-mover"
-version = "0.4.0"
-description = "AI Assistant Migration & Template Sharing API"
+name = "cloud-loader"
+version = "0.5.0"
+description = "AI Agent Services - File Transfer & Knowledge Tracking"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,10 +10,17 @@ dependencies = [
     "sqlmodel>=0.0.22",
     "python-multipart>=0.0.18",
     "pydantic-settings>=2.7.0",
+    # Concept Tracker dependencies
+    "tavily-python>=0.3.0",
+    "openai>=1.12.0",
+    "anthropic>=0.18.0",
+    "httpx>=0.26.0",
+    "apscheduler>=3.10.0",
+    "jinja2>=3.1.6",
 ]
 
 [project.scripts]
-cloud-mover = "cloud_mover.main:main"
+cloud-loader = "cloud_loader.main:main"
 
 [dependency-groups]
 dev = [
@@ -26,7 +33,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cloud_mover"]
+packages = ["src/cloud_loader"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

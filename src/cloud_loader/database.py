@@ -4,7 +4,7 @@ from collections.abc import Generator
 
 from sqlmodel import Session, SQLModel, create_engine
 
-from cloud_mover.config import settings
+from cloud_loader.config import settings
 
 engine = create_engine(
     settings.database_url,

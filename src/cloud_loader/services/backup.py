@@ -5,9 +5,9 @@ from typing import Optional
 
 from sqlmodel import Session, select
 
-from cloud_mover.config import settings
-from cloud_mover.models import Backup
-from cloud_mover.services.auth import generate_code
+from cloud_loader.config import settings
+from cloud_loader.models import Backup
+from cloud_loader.services.auth import generate_code
 
 MAX_CODE_GENERATION_ATTEMPTS = 100
 
