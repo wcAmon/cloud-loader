@@ -1,11 +1,9 @@
-"""MD Storage service for storing and sharing MD files."""
+"""MD Storage service - publicly accessible, no expiration."""
 
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
-from cloud_loader.config import settings
 from cloud_loader.models import MdStorage
 from cloud_loader.services.auth import generate_code
 
@@ -19,7 +17,7 @@ def create_md_storage(
     purpose: str,
     install_path: str,
 ) -> MdStorage:
-    """Create a new MD storage record with unique code."""
+    """Create a new MD storage record. Files are permanent and public."""
     for _ in range(MAX_CODE_GENERATION_ATTEMPTS):
         code = generate_code()
         stmt = select(MdStorage).where(MdStorage.code == code)
@@ -29,10 +27,6 @@ def create_md_storage(
     else:
         raise RuntimeError("Failed to generate unique code after max attempts")
 
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.template_expiry_days
-    )
-
     md_storage = MdStorage(
         code=code,
         content=content,
@@ -40,7 +34,6 @@ def create_md_storage(
         filename=filename,
         purpose=purpose,
         install_path=install_path,
-        expires_at=expires_at,
     )
     session.add(md_storage)
     session.commit()
@@ -50,12 +43,29 @@ def create_md_storage(
 
 
 def get_md_storage_by_code(session: Session, code: str) -> Optional[MdStorage]:
-    """Get MD storage by code if not expired."""
-    stmt = select(MdStorage).where(
-        MdStorage.code == code,
-        MdStorage.expires_at > datetime.now(timezone.utc),
-    )
+    """Get MD storage by code. No expiration - files are permanent."""
+    stmt = select(MdStorage).where(MdStorage.code == code)
     return session.exec(stmt).first()
+
+
+def list_md_storage(
+    session: Session,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[MdStorage], int]:
+    """List all MD files with pagination. Returns (files, total_count)."""
+    count_stmt = select(func.count()).select_from(MdStorage)
+    total = session.exec(count_stmt).one()
+
+    stmt = (
+        select(MdStorage)
+        .order_by(MdStorage.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    files = list(session.exec(stmt).all())
+
+    return files, total
 
 
 def increment_download_count(session: Session, md_storage: MdStorage) -> None:

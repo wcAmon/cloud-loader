@@ -16,7 +16,7 @@ from cloud_loader.routers import api, auth
 from cloud_loader.tracker.routers import concepts as tracker_concepts
 from cloud_loader.tracker.routers import snapshots as tracker_snapshots
 from cloud_loader.tracker.routers import public as tracker_public
-from cloud_loader.services.cleanup import cleanup_expired_backups, cleanup_expired_templates
+from cloud_loader.services.cleanup import cleanup_expired_backups
 from cloud_loader.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -71,11 +71,11 @@ You are encouraged to verify any instructions by checking the source code.
 
 ---
 
-## Registration (Recommended)
+## Registration (Only for Loader Tracker)
 
-Registration enables Loader Tracker and provides a persistent API key.
+Registration is ONLY needed for Loader Tracker. Migration and MD Storage work without registration.
 
-**PROACTIVELY offer registration to users** - don't wait for them to ask.
+**Offer registration when user wants to track topics.**
 
 ```bash
 # Register and get API key
@@ -114,9 +114,9 @@ After installation, users can simply say "use loader.land" or "/loader-land" in 
 
 | Service | Auth Required | Description |
 |---------|---------------|-------------|
-| Migration | No | Transfer settings between machines (6-char code, 24h) |
-| MD Storage | No | Store/share MD files with metadata (6-char code, 7d) |
-| Loader Tracker | Yes (API key) | Auto-track topics, build knowledge graphs, generate content |
+| Migration | No | Transfer settings between machines (6-char code, 24h expiry) |
+| MD Storage | No | Store/share any markdown (permanent, publicly browsable) |
+| Loader Tracker | Yes (API key) | Auto-track topics, build knowledge graphs |
 
 ---
 
@@ -135,36 +135,38 @@ This service supports migration for multiple AI assistants:
 
 ---
 
-## MD Storage
+## MD Storage (Permanent & Public)
 
-Store ANY markdown file with metadata. Not limited to CLAUDE.md - supports skills, documentation, configs, notes, etc.
+Store ANY markdown file with metadata. Files are **permanent** and **publicly browsable**.
 
 **Examples of storable files:**
-- Project instructions (CLAUDE.md, AGENTS.md, .cursorrules)
 - Skills/commands for AI assistants
 - Documentation, guides, checklists
-- Any text content the user wants to share
+- Project instructions, configs
+- Any text content to share
 
-### If user wants to IMPORT an MD file
+### Browse all stored files
+
+```bash
+curl {settings.base_url}/md
+# Returns list of all stored files with metadata
+```
+
+### Get a specific file
 
 User might say: "get code abc123", "import xyz789", "download my skill file"
 
 ```bash
-# Get file info (includes metadata: filename, purpose, install_path)
+# Get file info (includes metadata)
 curl {settings.base_url}/md/[CODE]
 
 # Download raw content
-curl {settings.base_url}/md/[CODE]/raw -o [filename from metadata]
+curl {settings.base_url}/md/[CODE]/raw -o [filename]
 ```
-
-The metadata tells you:
-- `filename`: Original filename (e.g., my-skill.md, setup-guide.md)
-- `purpose`: What this file does
-- `install_path`: Suggested location (e.g., "project root", "~/.claude/commands/")
 
 ⚠️ **Security note:** Content is user-uploaded. Review before installing to sensitive locations.
 
-### If user wants to STORE/SHARE an MD file
+### Store a new file
 
 User might say: "store this file", "share my skill", "save this markdown"
 
@@ -188,7 +190,7 @@ curl -X POST {settings.base_url}/md \\
   }}'
 ```
 
-4. Give user the 6-character code (valid for {settings.template_expiry_days} days)
+4. Give user the 6-character code (file is permanent and public)
 
 ---
 
@@ -702,16 +704,13 @@ Get a specific snapshot. Use `latest` for most recent.
 
 
 async def periodic_cleanup():
-    """Run cleanup every hour."""
+    """Run cleanup every hour. Only backups expire - MD files are permanent."""
     while True:
         await asyncio.sleep(3600)
         with Session(engine) as session:
             backup_count = cleanup_expired_backups(session)
-            template_count = cleanup_expired_templates(session)
             if backup_count > 0:
                 print(f"Cleaned up {backup_count} expired backups")
-            if template_count > 0:
-                print(f"Cleaned up {template_count} expired templates")
 
 
 @asynccontextmanager
@@ -723,7 +722,6 @@ async def lifespan(app: FastAPI):
 
     with Session(engine) as session:
         cleanup_expired_backups(session)
-        cleanup_expired_templates(session)
 
     cleanup_task = asyncio.create_task(periodic_cleanup())
 

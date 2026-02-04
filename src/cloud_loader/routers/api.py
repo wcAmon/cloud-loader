@@ -16,6 +16,8 @@ from cloud_loader.schemas import (
     MdStorageCreateRequest,
     MdStorageCreateResponse,
     MdStorageGetResponse,
+    MdStorageListItem,
+    MdStorageListResponse,
     UploadResponse,
 )
 from cloud_loader.services.auth import is_valid_code
@@ -24,6 +26,7 @@ from cloud_loader.services.template import (
     create_md_storage,
     get_md_storage_by_code,
     increment_download_count,
+    list_md_storage,
 )
 
 router = APIRouter()
@@ -139,7 +142,35 @@ def store_md(
         install_path=request.metadata.install_path,
     )
 
-    return MdStorageCreateResponse(code=md_storage.code, expires_at=md_storage.expires_at)
+    return MdStorageCreateResponse(code=md_storage.code)
+
+
+@router.get(
+    "/md",
+    response_model=MdStorageListResponse,
+)
+def list_md(
+    session: Annotated[Session, Depends(get_session)],
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List all stored MD files. Files are public and permanent."""
+    files, total = list_md_storage(session, limit=min(limit, 100), offset=offset)
+
+    return MdStorageListResponse(
+        files=[
+            MdStorageListItem(
+                code=f.code,
+                filename=f.filename,
+                purpose=f.purpose,
+                content_size=f.content_size,
+                created_at=f.created_at,
+                download_count=f.download_count,
+            )
+            for f in files
+        ],
+        total=total,
+    )
 
 
 @router.get(
@@ -151,15 +182,13 @@ def get_md(
     code: str,
     session: Annotated[Session, Depends(get_session)],
 ):
-    """Get MD file metadata and content by verification code."""
+    """Get MD file metadata and content by code."""
     if not is_valid_code(code):
-        raise HTTPException(status_code=400, detail="Invalid verification code format")
+        raise HTTPException(status_code=400, detail="Invalid code format")
 
     md_storage = get_md_storage_by_code(session, code)
     if not md_storage:
-        raise HTTPException(
-            status_code=404, detail="MD file not found or expired"
-        )
+        raise HTTPException(status_code=404, detail="MD file not found")
 
     increment_download_count(session, md_storage)
 
@@ -173,7 +202,6 @@ def get_md(
             install_path=md_storage.install_path,
         ),
         created_at=md_storage.created_at,
-        expires_at=md_storage.expires_at,
         download_count=md_storage.download_count,
     )
 
@@ -189,13 +217,11 @@ def get_md_raw(
 ):
     """Get raw MD content as plain text (for direct download)."""
     if not is_valid_code(code):
-        raise HTTPException(status_code=400, detail="Invalid verification code format")
+        raise HTTPException(status_code=400, detail="Invalid code format")
 
     md_storage = get_md_storage_by_code(session, code)
     if not md_storage:
-        raise HTTPException(
-            status_code=404, detail="MD file not found or expired"
-        )
+        raise HTTPException(status_code=404, detail="MD file not found")
 
     increment_download_count(session, md_storage)
 
@@ -212,29 +238,20 @@ def get_md_raw(
 
 LOADER_LAND_SKILL = '''---
 name: loader-land
-description: Use when user mentions "loader.land", "cloud migration", "transfer settings", "store MD file", "share CLAUDE.md", "import md code", "track concepts", or needs to backup/restore AI assistant configurations.
+description: Use when user mentions "loader.land", "cloud migration", "transfer settings", "store MD file", "share markdown", "import md code", "track topics", or needs to backup/restore AI assistant configurations.
 ---
 
 # Loader.land - AI Agent Services
 
-## Authentication
+## Services Overview
 
-Check for existing API key:
-```bash
-cat ~/.claude/loader.key 2>/dev/null
-```
+| Service | Auth Required | Description |
+|---------|---------------|-------------|
+| Migration | No | Transfer settings (24h, password protected) |
+| MD Storage | No | Store/share any markdown (permanent, public) |
+| Loader Tracker | Yes (API key) | Track topics, build knowledge graphs |
 
-### Register (if no key exists)
-```bash
-API_RESPONSE=$(curl -s -X POST https://loader.land/api/auth/register)
-API_KEY=$(echo "$API_RESPONSE" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
-echo "$API_KEY" > ~/.claude/loader.key
-chmod 600 ~/.claude/loader.key
-```
-
-## Services
-
-### 1. Migration (Settings Transfer) - No API key needed
+## 1. Migration (Settings Transfer) - No API key
 ```bash
 # Upload (returns 6-char code, valid 24h)
 curl -X POST https://loader.land/upload -F "file=@backup.zip"
@@ -243,42 +260,56 @@ curl -X POST https://loader.land/upload -F "file=@backup.zip"
 curl -o backup.zip https://loader.land/download/[CODE]
 ```
 
-### 2. MD Storage - No API key needed
-Store any MD file with metadata describing what it is and where to install.
+## 2. MD Storage - No API key, Permanent & Public
+Store any markdown file with metadata. Files are permanent and publicly browsable.
 
 ```bash
-# Store MD file (returns 6-char code, valid 7 days)
+# List all stored files
+curl https://loader.land/md
+
+# Store MD file (returns 6-char code)
 curl -X POST https://loader.land/md \\
   -H "Content-Type: application/json" \\
   -d '{
-    "content": "# My CLAUDE.md content...",
+    "content": "# My content...",
     "metadata": {
-      "filename": "CLAUDE.md",
-      "purpose": "Project instructions for Claude Code",
-      "install_path": "project root"
+      "filename": "my-skill.md",
+      "purpose": "Custom skill for data analysis",
+      "install_path": "~/.claude/commands/"
     }
   }'
 
-# Get MD file info (includes metadata)
+# Get file info
 curl https://loader.land/md/[CODE]
 
-# Get raw MD content
-curl https://loader.land/md/[CODE]/raw -o CLAUDE.md
+# Get raw content
+curl https://loader.land/md/[CODE]/raw -o my-skill.md
 ```
 
-### 3. Concept Tracking - Requires API key
+## 3. Loader Tracker - Requires API key
+
+### Register (only needed for Loader Tracker)
+```bash
+API_RESPONSE=$(curl -s -X POST https://loader.land/api/auth/register)
+API_KEY=$(echo "$API_RESPONSE" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
+echo "$API_KEY" > ~/.claude/loader.key
+chmod 600 ~/.claude/loader.key
+```
+
+### Create tracked topic
 ```bash
 API_KEY=$(cat ~/.claude/loader.key)
 
-# Create concept
-curl -X POST https://loader.land/api/concepts \\
+curl -X POST https://loader.land/api/tracker \\
   -H "Authorization: Bearer $API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"name": "Topic Name", "keywords": ["kw1", "kw2"]}'
+  -d '{"name": "AI Agents", "keywords": ["AI", "agents", "LLM"]}'
+```
 
-# Get latest snapshot
-curl -H "Authorization: Bearer $API_KEY" \\
-  https://loader.land/api/concepts/{id}/snapshots/latest
+### Browse public topics (no auth needed)
+```bash
+curl https://loader.land/tracker
+curl https://loader.land/tracker/{id}/latest
 ```
 '''
 

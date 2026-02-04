@@ -37,7 +37,7 @@ class User(SQLModel, table=True):
 
 
 class MdStorage(SQLModel, table=True):
-    """MD file storage for agents."""
+    """MD file storage for agents - publicly accessible, no expiration."""
 
     __tablename__ = "md_storage"
 
@@ -49,12 +49,11 @@ class MdStorage(SQLModel, table=True):
     content_size: int
 
     # MD Metadata
-    filename: str = Field(max_length=100)  # e.g., CLAUDE.md, DEVELOPMENT.md
+    filename: str = Field(max_length=100)  # e.g., my-skill.md, setup-guide.md
     purpose: str = Field(max_length=500)  # What this file does
     install_path: str = Field(max_length=200)  # Where to install, e.g., "project root", "~/.claude/commands/"
 
     created_at: datetime = Field(default_factory=_utc_now)
-    expires_at: datetime
     download_count: int = Field(default=0)
 
 

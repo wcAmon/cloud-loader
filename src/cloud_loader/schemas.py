@@ -54,8 +54,7 @@ class MdStorageCreateResponse(BaseModel):
     """Response for MD storage creation."""
 
     code: str = Field(min_length=6, max_length=6)
-    expires_at: datetime
-    message: str = "MD file stored successfully"
+    message: str = "MD file stored successfully. This file is now publicly accessible."
 
 
 class MdStorageGetResponse(BaseModel):
@@ -66,8 +65,25 @@ class MdStorageGetResponse(BaseModel):
     content_size: int
     metadata: MdMetadata
     created_at: datetime
-    expires_at: datetime
     download_count: int
+
+
+class MdStorageListItem(BaseModel):
+    """Item in MD storage list."""
+
+    code: str
+    filename: str
+    purpose: str
+    content_size: int
+    created_at: datetime
+    download_count: int
+
+
+class MdStorageListResponse(BaseModel):
+    """Response for listing MD files."""
+
+    files: list[MdStorageListItem]
+    total: int
 
 
 # Backward compatibility aliases

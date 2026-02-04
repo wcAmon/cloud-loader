@@ -161,7 +161,7 @@ def test_store_md_returns_code(client: TestClient):
     assert "code" in data
     assert len(data["code"]) == 6
     assert data["code"].isalnum()
-    assert "expires_at" in data
+    assert "message" in data  # No expires_at - MD files are permanent
 
 
 def test_store_md_various_filenames(client: TestClient):

@@ -1,11 +1,11 @@
-"""Cleanup service for expired backups and MD storage."""
+"""Cleanup service for expired backups only. MD files are permanent."""
 
 import os
 from datetime import datetime, timezone
 
 from sqlmodel import Session, select
 
-from cloud_loader.models import Backup, MdStorage
+from cloud_loader.models import Backup
 
 
 def cleanup_expired_backups(session: Session) -> int:
@@ -31,19 +31,4 @@ def cleanup_expired_backups(session: Session) -> int:
     return count
 
 
-def cleanup_expired_templates(session: Session) -> int:
-    """Delete expired MD storage entries. Returns count of deleted items."""
-    now = datetime.now(timezone.utc)
-
-    stmt = select(MdStorage).where(MdStorage.expires_at < now)
-    expired = session.exec(stmt).all()
-
-    count = 0
-    for md_storage in expired:
-        session.delete(md_storage)
-        count += 1
-
-    if count > 0:
-        session.commit()
-
-    return count
+# Note: MD Storage files are permanent and publicly accessible - no cleanup needed
