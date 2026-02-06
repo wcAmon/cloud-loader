@@ -14,8 +14,7 @@ class Settings(BaseSettings):
 
     # Storage
     upload_dir: Path = Path("./uploads")
-    data_dir: Path = Path("./data")
-    snapshots_dir: Path = Path("./data/snapshots")
+    data_dir: Path = Path("/home/wake/cloud-loader/data")
 
     # Cloud Mover settings
     max_file_size_mb: int = 59
@@ -23,10 +22,15 @@ class Settings(BaseSettings):
     template_expiry_days: int = 7
     max_template_size_kb: int = 100
 
-    # Loader Tracker API keys
+    # Tavily (used by Dusk agent web search)
     tavily_api_key: str = ""
-    openai_api_key: str = ""
-    anthropic_api_key: str = ""
+
+    # X (Twitter) API keys
+    x_api_key: str = ""
+    x_api_secret: str = ""
+    x_access_token: str = ""
+    x_access_token_secret: str = ""
+    x_bearer_token: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

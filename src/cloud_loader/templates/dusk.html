@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dusk | Agent Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌅</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dusk': '#1a1510',
+                        'accent': '#f59e0b',
+                        'accent-light': '#fde68a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #121010; }
+        .run-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .run-content.open { max-height: 5000px; transition: max-height 0.5s ease-in; }
+        .toggle-arrow { transition: transform 0.2s; display: inline-block; }
+        .toggle-arrow.open { transform: rotate(90deg); }
+        .md-content h1 { font-size: 1.4rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #fde68a; }
+        .md-content h2 { font-size: 1.2rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #fbbf24; }
+        .md-content h3 { font-size: 1.05rem; font-weight: 600; margin: 0.75rem 0 0.25rem; color: #fde68a; }
+        .md-content p { margin: 0.5rem 0; line-height: 1.7; color: #d1d5db; }
+        .md-content ul, .md-content ol { margin: 0.5rem 0; padding-left: 1.5rem; color: #d1d5db; }
+        .md-content li { margin: 0.25rem 0; }
+        .md-content ul li { list-style-type: disc; }
+        .md-content ol li { list-style-type: decimal; }
+        .md-content code { background: #292218; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.85em; color: #fde68a; }
+        .md-content pre { background: #1a1510; color: #fef3c7; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; border: 1px solid #292218; }
+        .md-content pre code { background: none; padding: 0; color: inherit; }
+        .md-content table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; font-size: 0.9em; }
+        .md-content th, .md-content td { border: 1px solid #292218; padding: 0.5rem 0.75rem; text-align: left; color: #d1d5db; }
+        .md-content th { background: #1a1510; font-weight: 600; color: #fde68a; }
+        .md-content strong { font-weight: 600; color: #fef3c7; }
+        .md-content hr { border: none; border-top: 1px solid #292218; margin: 1rem 0; }
+        .md-content a { color: #f59e0b; text-decoration: underline; }
+        .md-content blockquote { border-left: 3px solid #f59e0b; padding-left: 1rem; color: #9ca3af; margin: 0.75rem 0; }
+        .settings-panel { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .settings-panel.open { max-height: 300px; transition: max-height 0.3s ease-in; }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 4px rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.8); }
+        }
+        .agent-active { animation: pulse-glow 2s ease-in-out infinite; }
+    </style>
+</head>
+<body class="text-gray-200 min-h-screen">
+
+    <!-- Header -->
+    <header class="border-b border-amber-900/50">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-accent-light">Dusk</h1>
+                    <p class="text-gray-500 mt-1">loader.land Agent Dashboard</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    {% if agent_running %}
+                    <span class="flex items-center gap-1.5 text-xs text-yellow-300 bg-yellow-900/30 px-3 py-1.5 rounded-full agent-active">
+                        <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                        Agent Working
+                    </span>
+                    {% endif %}
+                    {% if next_run %}
+                    <span class="text-xs text-gray-500">Next: <span class="text-accent">{{ next_run }}</span></span>
+                    {% endif %}
+                    <form method="post" action="/dusk/trigger" class="inline">
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-amber-900/50 hover:bg-amber-800/50 text-accent border border-amber-800/50 rounded-lg transition-colors"
+                                {% if agent_running %}disabled title="Agent is running"{% endif %}>
+                            Run
+                        </button>
+                    </form>
+                    <button onclick="toggleSettings()" class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 rounded-lg transition-colors">
+                        Settings
+                    </button>
+                </div>
+            </div>
+
+            <!-- Agent Status Bar -->
+            <div class="mt-3 flex items-center gap-4 text-xs text-gray-500">
+                {% if config %}
+                <span>Worker: {% if config.enabled %}<span class="text-green-400">ON</span>{% else %}<span class="text-red-400">OFF</span>{% endif %} / {{ config.interval_hours }}h</span>
+                {% endif %}
+                {% if memory_updated %}
+                <span>Memory: {{ memory_updated.strftime('%m-%d %H:%M') }} UTC</span>
+                {% endif %}
+                {% if config and config.last_run_at %}
+                <span>Last run: {{ config.last_run_at.strftime('%m-%d %H:%M') }} UTC</span>
+                {% endif %}
+            </div>
+
+            <!-- Settings Panel -->
+            <div id="settings-panel" class="settings-panel">
+                <form method="post" action="/dusk/settings" class="mt-4 p-4 bg-gray-900/50 rounded-lg border border-amber-900/30">
+                    <div class="flex flex-wrap items-end gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Interval (hours)</label>
+                            <input type="number" name="interval_hours"
+                                   value="{{ config.interval_hours if config else 6 }}"
+                                   min="4" max="168" step="0.5"
+                                   class="w-24 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm text-gray-200 focus:border-accent focus:outline-none">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="enabled" value="true" id="worker-enabled"
+                                   {% if config and config.enabled %}checked{% endif %}
+                                   class="w-4 h-4 accent-amber-500">
+                            <label for="worker-enabled" class="text-sm text-gray-400">Enabled</label>
+                        </div>
+                        <button type="submit" class="px-4 py-1.5 text-sm bg-accent hover:bg-amber-500 text-black font-medium rounded transition-colors">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+
+        <!-- ASK WAKE -->
+        <section class="mb-12">
+            <h2 class="text-xl font-bold text-accent-light mb-5 flex items-center gap-2">
+                Ask Wake
+                {% set unanswered = ask_entries | rejectattr('is_answered') | list %}
+                {% if unanswered %}
+                <span class="text-xs bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">{{ unanswered | length }}</span>
+                {% endif %}
+            </h2>
+
+            {% if ask_entries %}
+                {% set unanswered = ask_entries | rejectattr('is_answered') | list %}
+                {% set answered = ask_entries | selectattr('is_answered') | list %}
+
+                {% if unanswered %}
+                <div class="space-y-4 mb-6">
+                    {% for e in unanswered %}
+                    <div class="bg-gray-900/60 rounded-lg border border-yellow-900/40 p-5">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs font-mono bg-yellow-950 text-yellow-300 px-2 py-0.5 rounded">
+                                {{ e.asked_at.strftime('%Y-%m-%d %H:%M') }} UTC
+                            </span>
+                            <span class="text-xs bg-yellow-900/50 text-yellow-300 px-2 py-0.5 rounded">unanswered</span>
+                        </div>
+                        <p class="text-gray-100 font-medium">{{ e.question }}</p>
+                        {% if e.context %}
+                        <p class="text-gray-500 text-sm mt-1">{{ e.context }}</p>
+                        {% endif %}
+                        <form method="post" action="/dusk/ask-wake/{{ e.id }}/answer" class="mt-3">
+                            <textarea name="answer" rows="2" required placeholder="Reply..."
+                                      class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-accent focus:outline-none resize-y"></textarea>
+                            <button type="submit" class="mt-2 px-4 py-1.5 text-sm bg-accent hover:bg-amber-500 text-black font-medium rounded-lg transition-colors">
+                                Answer
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if answered %}
+                <div class="space-y-3">
+                    {% for e in answered %}
+                    {% if loop.first %}
+                    <!-- Latest answer: always expanded -->
+                    <div class="bg-gray-900/40 rounded-lg border border-amber-900/20 p-4">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-xs font-mono text-gray-600">
+                                {{ e.asked_at.strftime('%m-%d %H:%M') }}
+                            </span>
+                            <span class="text-xs text-green-400/70">answered</span>
+                        </div>
+                        <p class="text-gray-300 text-sm">{{ e.question }}</p>
+                        <div class="mt-1.5 pl-3 border-l-2 border-accent/40">
+                            <p class="text-gray-400 text-sm whitespace-pre-wrap">{{ e.answer }}</p>
+                        </div>
+                    </div>
+                    {% if answered | length > 1 and loop.first %}
+                    <button onclick="document.getElementById('dusk-older-answers').classList.toggle('hidden'); this.querySelector('span').textContent = document.getElementById('dusk-older-answers').classList.contains('hidden') ? 'Show {{ answered | length - 1 }} more...' : 'Hide older'"
+                            class="text-sm text-accent hover:text-amber-300 transition-colors cursor-pointer">
+                        <span>Show {{ answered | length - 1 }} more...</span>
+                    </button>
+                    <div id="dusk-older-answers" class="hidden space-y-3">
+                    {% endif %}
+                    {% else %}
+                    <!-- Older answers: collapsed by default -->
+                    <div class="bg-gray-900/40 rounded-lg border border-amber-900/20 p-4">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="text-xs font-mono text-gray-600">
+                                {{ e.asked_at.strftime('%m-%d %H:%M') }}
+                            </span>
+                            <span class="text-xs text-green-400/70">answered</span>
+                        </div>
+                        <p class="text-gray-300 text-sm">{{ e.question }}</p>
+                        <div class="mt-1.5 pl-3 border-l-2 border-accent/40">
+                            <p class="text-gray-400 text-sm whitespace-pre-wrap">{{ e.answer }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% if answered | length > 1 %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+            {% else %}
+            <div class="text-center py-10 bg-gray-900/30 rounded-lg border border-amber-900/20">
+                <p class="text-gray-600">Dusk Agent will post questions here during its next run.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- AGENT BRAINSTORM -->
+        <section>
+            <h2 class="text-xl font-bold text-accent-light mb-1">Agent Brainstorm</h2>
+            <div class="mb-5 text-sm text-gray-500">
+                {{ total }} entries{% if total > 0 %} &middot; page {{ page }} / {{ total_pages }}{% endif %}
+            </div>
+
+            {% if runs %}
+            <div class="relative">
+                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-amber-900/50"></div>
+
+                <div class="space-y-4">
+                    {% for run in runs %}
+                    <div class="relative pl-10">
+                        {% if run.status == 'success' %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 bg-accent rounded-full border-2 border-gray-900 shadow"></div>
+                        {% elif run.status == 'running' %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 bg-yellow-400 rounded-full border-2 border-gray-900 shadow animate-pulse"></div>
+                        {% else %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 bg-red-500 rounded-full border-2 border-gray-900 shadow"></div>
+                        {% endif %}
+
+                        <div class="bg-gray-900/60 rounded-lg border {% if run.status == 'running' %}border-yellow-800/50 agent-active{% else %}border-amber-900/30{% endif %} overflow-hidden hover:border-amber-800/50 transition-colors">
+                            <button onclick="toggleRun({{ run.id }})" class="w-full text-left p-4 hover:bg-gray-800/30 transition-colors">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span class="text-xs font-mono bg-amber-950 text-amber-300 px-2 py-0.5 rounded">
+                                                {{ run.created_at.strftime('%Y-%m-%d %H:%M') }} UTC
+                                            </span>
+                                            {% if run.status == 'success' %}
+                                            <span class="text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded">success</span>
+                                            {% elif run.status == 'running' %}
+                                            <span class="text-xs bg-yellow-900/50 text-yellow-300 px-2 py-0.5 rounded animate-pulse">running...</span>
+                                            {% else %}
+                                            <span class="text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded">failed</span>
+                                            {% endif %}
+                                            {% if run.duration_seconds %}
+                                            <span class="text-xs text-gray-600">{{ "%.0f"|format(run.duration_seconds) }}s</span>
+                                            {% endif %}
+                                        </div>
+                                        <h3 class="text-base font-semibold text-gray-100 truncate">{{ run.title }}</h3>
+                                        {% if run.status != 'running' %}
+                                        <p class="text-gray-400 text-sm mt-1 line-clamp-2">{{ run.summary[:200] }}</p>
+                                        {% else %}
+                                        <p class="text-yellow-300/70 text-sm mt-1">Agent is actively working...</p>
+                                        {% endif %}
+                                    </div>
+                                    <span id="arrow-{{ run.id }}" class="toggle-arrow text-gray-600 ml-3 mt-1 text-sm flex-shrink-0">&#9654;</span>
+                                </div>
+                            </button>
+
+                            <div id="content-{{ run.id }}" class="run-content">
+                                <div class="border-t border-amber-900/30 px-5 py-4 bg-gray-900/80">
+                                    <div id="md-{{ run.id }}" class="md-content"></div>
+                                </div>
+                            </div>
+
+                            <script type="text/markdown" id="raw-{{ run.id }}">{{ run.content }}</script>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if total_pages > 1 %}
+            <nav class="mt-10 flex items-center justify-center gap-2">
+                {% if page > 1 %}
+                <a href="/dusk?page={{ page - 1 }}" class="px-4 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">&larr;</a>
+                {% endif %}
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <span class="px-4 py-2 text-sm bg-accent text-black rounded-lg font-medium">{{ p }}</span>
+                    {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                    <a href="/dusk?page={{ p }}" class="px-4 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">{{ p }}</a>
+                    {% elif p == page - 3 or p == page + 3 %}
+                    <span class="px-2 text-gray-600">...</span>
+                    {% endif %}
+                {% endfor %}
+                {% if page < total_pages %}
+                <a href="/dusk?page={{ page + 1 }}" class="px-4 py-2 text-sm bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors">&rarr;</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-10 bg-gray-900/30 rounded-lg border border-amber-900/20">
+                <p class="text-gray-600">No agent reports yet. Enable the worker or trigger a run to start.</p>
+            </div>
+            {% endif %}
+        </section>
+
+    </main>
+
+    <footer class="border-t border-amber-900/30 mt-12">
+        <div class="max-w-4xl mx-auto px-4 py-6 text-center text-gray-600 text-sm">
+            Dusk v0.1 &middot; loader.land Agent
+        </div>
+    </footer>
+
+    <script>
+        document.querySelectorAll('script[type="text/markdown"]').forEach(function(el) {
+            var id = el.id.replace('raw-', '');
+            var target = document.getElementById('md-' + id);
+            if (target && el.textContent.trim()) {
+                var rawHtml = marked.parse(el.textContent);
+                target.insertAdjacentHTML('afterbegin', DOMPurify.sanitize(rawHtml));
+            }
+        });
+
+        function toggleRun(id) {
+            document.getElementById('content-' + id).classList.toggle('open');
+            document.getElementById('arrow-' + id).classList.toggle('open');
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('open');
+        }
+
+        {% if agent_running %}
+        setTimeout(function() { location.reload(); }, 30000);
+        {% endif %}
+    </script>
+</body>
+</html>

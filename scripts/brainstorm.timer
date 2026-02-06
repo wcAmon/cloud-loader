@@ -1,0 +1,19 @@
+# Agent Brainstorm Timer - runs daily at 20:00 UTC
+# Install:
+#   cp scripts/brainstorm.service ~/.config/systemd/user/
+#   cp scripts/brainstorm.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now brainstorm.timer
+#
+# Check schedule:
+#   systemctl --user list-timers
+
+[Unit]
+Description=Agent Brainstorm Daily Timer
+
+[Timer]
+OnCalendar=*-*-* 20:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

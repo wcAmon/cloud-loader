@@ -61,53 +61,68 @@ class MdStorage(SQLModel, table=True):
 Template = MdStorage
 
 
-class ConceptStatus(str, Enum):
-    """Concept lifecycle status (user-controlled)."""
+class BrainstormEntry(SQLModel, table=True):
+    """Daily brainstorm strategy entry from Claude worker."""
 
-    ACTIVE = "active"
-    PAUSED = "paused"
-    ARCHIVED = "archived"
-
-
-class ConceptRunStatus(str, Enum):
-    """Concept task execution status."""
-
-    PENDING = "pending"      # Created, waiting for first run
-    RUNNING = "running"      # Currently executing
-    READY = "ready"          # Has at least one successful snapshot
-    FAILED = "failed"        # Last run failed
-
-
-class Concept(SQLModel, table=True):
-    """Concept table for knowledge tracking."""
-
-    __tablename__ = "concepts"
+    __tablename__ = "brainstorm_entries"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True, max_length=20)  # Links to User.user_id
-    name: str = Field(max_length=200)
-    description: Optional[str] = Field(default=None, max_length=1000)
-    keywords: str = Field(default="")  # JSON array stored as string
-    status: str = Field(default=ConceptStatus.ACTIVE)  # Lifecycle status
-    run_status: str = Field(default=ConceptRunStatus.PENDING)  # Execution status
-    is_public: bool = Field(default=True)  # Whether visible in public listings
+    title: str = Field(max_length=200)
+    summary: str = Field(max_length=1000)
+    content: str  # Full brainstorm content (markdown)
+    concept: str = Field(default="服務agents的網站", max_length=200)
     created_at: datetime = Field(default_factory=_utc_now)
+
+
+# ---------------------------------------------------------------------------
+# Dusk Agent models
+# ---------------------------------------------------------------------------
+
+
+class DuskRunStatus(str, Enum):
+    """Dusk agent run status."""
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    RUNNING = "running"
+
+
+class DuskRun(SQLModel, table=True):
+    """Record of a Dusk agent run."""
+
+    __tablename__ = "dusk_runs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(max_length=200)
+    summary: str = Field(max_length=2000)
+    content: str  # Full markdown content
+    status: str = Field(default=DuskRunStatus.SUCCESS)
+    duration_seconds: Optional[float] = Field(default=None)
+    created_at: datetime = Field(default_factory=_utc_now)
+
+
+class DuskAskWake(SQLModel, table=True):
+    """Questions from Dusk agent to Wake."""
+
+    __tablename__ = "dusk_ask_wake"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    question: str = Field(max_length=2000)
+    context: str = Field(default="", max_length=5000)
+    answer: Optional[str] = Field(default=None)
+    is_answered: bool = Field(default=False)
+    asked_at: datetime = Field(default_factory=_utc_now)
+    answered_at: Optional[datetime] = Field(default=None)
+    acknowledged_at: Optional[datetime] = Field(default=None)
+
+
+class DuskConfig(SQLModel, table=True):
+    """Dusk worker configuration (singleton row)."""
+
+    __tablename__ = "dusk_config"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    interval_hours: float = Field(default=6.0)
+    enabled: bool = Field(default=False)
+    last_run_at: Optional[datetime] = Field(default=None)
     updated_at: datetime = Field(default_factory=_utc_now)
-    last_searched_at: Optional[datetime] = Field(default=None)
-    search_interval_hours: int = Field(default=24)
-
-
-class ConceptSnapshot(SQLModel, table=True):
-    """Snapshot of concept knowledge at a point in time."""
-
-    __tablename__ = "concept_snapshots"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    concept_id: int = Field(foreign_key="concepts.id", index=True)
-    snapshot_path: str  # Path to JSON file with full graph data
-    node_count: int = Field(default=0)
-    edge_count: int = Field(default=0)
-    sources_count: int = Field(default=0)
-    created_at: datetime = Field(default_factory=_utc_now)
-    summary: Optional[str] = Field(default=None, max_length=2000)
-    md_code: Optional[str] = Field(default=None, max_length=6)  # Code for md-store sharing

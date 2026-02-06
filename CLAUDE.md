@@ -13,24 +13,18 @@ uv run pytest tests/test_api.py::test_full_upload_download_flow  # Run single te
 
 ## Architecture
 
-Cloud-Loader provides three AI agent services:
+Cloud-Loader provides these services:
 1. **File Transfer** (`/upload`, `/download`): Migrate settings with 6-char verification codes, 24h expiry
-2. **MD Storage** (`/md`): Store any MD file with metadata (filename, purpose, install_path), 7-day expiry
-3. **Concept Tracking** (`/api/concepts/*`): Knowledge tracking with search → graph → content pipeline
+2. **MD Storage** (`/md`): Store any MD file with metadata (filename, purpose, install_path), permanent
+3. **Agent Hub** (`/hub`): Unified dashboard for Midnight + Dusk agents
+4. **Dusk Agent** (`/dusk`): Autonomous agent managing loader.land ecosystem
 
 ### API Design
 
 - Root `/` returns plain text documentation for AI agents, redirects browsers to `/human`
 - Anonymous: `/upload`, `/download/{code}`, `/md`, `/md/{code}`, `/md/{code}/raw`
-- Authenticated: `/api/auth/*`, `/api/concepts/*` (requires `Authorization: Bearer ll_xxx` header)
+- Agent Hub: `/hub` (unified), `/dusk` (Dusk dashboard)
 - Verification codes: 6 alphanumeric chars, validated via `services/auth.py:is_valid_code()`
-
-### Concept Tracker Pipeline
-
-The orchestrator (`tracker/agents/orchestrator.py`) runs this pipeline:
-1. **Search** (Tavily) → 2. **Graph** (Claude/OpenAI builds knowledge graph) → 3. **Content** (generates drafts)
-
-Snapshots are stored as JSON in `./data/snapshots/{concept_id}/` with database metadata in `ConceptSnapshot`.
 
 ### Testing Pattern
 
@@ -57,7 +51,5 @@ DATA_DIR=./data
 MAX_FILE_SIZE_MB=59
 EXPIRY_HOURS=24
 TEMPLATE_EXPIRY_DAYS=7
-TAVILY_API_KEY=      # For concept search
-OPENAI_API_KEY=      # For graph/content (fallback)
-ANTHROPIC_API_KEY=   # For graph/content (primary)
+TAVILY_API_KEY=      # For Dusk agent web search
 ```

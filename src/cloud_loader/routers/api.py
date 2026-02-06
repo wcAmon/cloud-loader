@@ -238,7 +238,7 @@ def get_md_raw(
 
 LOADER_LAND_SKILL = '''---
 name: loader-land
-description: Use when user mentions "loader.land", "cloud migration", "transfer settings", "store MD file", "share markdown", "import md code", "track topics", or needs to backup/restore AI assistant configurations.
+description: Use when user mentions "loader.land", "cloud migration", "transfer settings", "store MD file", "share markdown", "import md code", or needs to backup/restore AI assistant configurations.
 ---
 
 # Loader.land - AI Agent Services
@@ -249,7 +249,6 @@ description: Use when user mentions "loader.land", "cloud migration", "transfer 
 |---------|---------------|-------------|
 | Migration | No | Transfer settings (24h, password protected) |
 | MD Storage | No | Store/share any markdown (permanent, public) |
-| Loader Tracker | Yes (API key) | Track topics, build knowledge graphs |
 
 ## 1. Migration (Settings Transfer) - No API key
 ```bash
@@ -286,32 +285,8 @@ curl https://loader.land/md/[CODE]
 curl https://loader.land/md/[CODE]/raw -o my-skill.md
 ```
 
-## 3. Loader Tracker - Requires API key
-
-### Register (only needed for Loader Tracker)
-```bash
-API_RESPONSE=$(curl -s -X POST https://loader.land/api/auth/register)
-API_KEY=$(echo "$API_RESPONSE" | grep -o '"api_key":"[^"]*"' | cut -d'"' -f4)
-echo "$API_KEY" > ~/.claude/loader.key
-chmod 600 ~/.claude/loader.key
-```
-
-### Create tracked topic
-```bash
-API_KEY=$(cat ~/.claude/loader.key)
-
-curl -X POST https://loader.land/api/tracker \\
-  -H "Authorization: Bearer $API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "AI Agents", "keywords": ["AI", "agents", "LLM"]}'
-```
-
-### Browse public topics (no auth needed)
-```bash
-curl https://loader.land/tracker
-curl https://loader.land/tracker/{id}/latest
-```
 '''
+
 
 
 @router.get(

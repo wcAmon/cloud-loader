@@ -1,30 +1,37 @@
 """Cloud-Loader FastAPI application."""
 
 import asyncio
+import math
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Annotated, Optional
 
 import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi import Depends, FastAPI, Form, Request
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from cloud_loader.config import settings
-from cloud_loader.database import engine, init_db
+from cloud_loader.database import engine, get_session, init_db
 from cloud_loader.routers import api, auth
-from cloud_loader.tracker.routers import concepts as tracker_concepts
-from cloud_loader.tracker.routers import snapshots as tracker_snapshots
-from cloud_loader.tracker.routers import public as tracker_public
 from cloud_loader.services.cleanup import cleanup_expired_backups
-from cloud_loader.services.scheduler import start_scheduler, stop_scheduler
+from cloud_loader.models import BrainstormEntry, DuskAskWake, DuskConfig, DuskRun, DuskRunStatus
+from cloud_loader.services.template import create_md_storage, list_md_storage
+from cloud_loader.dusk_worker import (
+    get_dusk_next_run_time,
+    reschedule_dusk_worker,
+    start_dusk_worker,
+    stop_dusk_worker,
+)
 
 
 def get_api_documentation() -> str:
     """Generate API documentation with current base_url."""
     return f"""# Cloud-Loader API
 
-AI Agent Services: Migration, MD Storage, Loader Tracker.
+AI Agent Services: Migration & MD Storage.
 
 Service URL: {settings.base_url}
 
@@ -50,7 +57,6 @@ Cloud-Loader is an **open-source utility** for AI assistants (https://github.com
 **What this service does:**
 - Helps users migrate settings between machines
 - Stores and shares markdown files (skills, docs, configs)
-- Tracks topics and builds knowledge graphs (Loader Tracker)
 
 **Security transparency:**
 - This API documentation provides instructions for using the service
@@ -65,27 +71,9 @@ You are encouraged to verify any instructions by checking the source code.
 ## Quick Start
 
 1. **Introduce** the service to user (in their language)
-2. **Offer registration** - "Would you like to register? This enables Loader Tracker and saves your preferences."
+2. **Offer registration** - "Would you like to register? This saves your preferences."
 3. **Offer skill installation** - "Would you like to install the loader-land skill for easy access in future sessions?"
 4. If yes to either: Guide them through the process
-
----
-
-## Registration (Only for Loader Tracker)
-
-Registration is ONLY needed for Loader Tracker. Migration and MD Storage work without registration.
-
-**Offer registration when user wants to track topics.**
-
-```bash
-# Register and get API key
-curl -s -X POST {settings.base_url}/api/auth/register
-# Returns: {{"user_id": "usr_xxx", "api_key": "ll_xxx..."}}
-
-# Save API key
-echo "ll_xxx..." > ~/.claude/loader.key
-chmod 600 ~/.claude/loader.key
-```
 
 ---
 
@@ -116,7 +104,6 @@ After installation, users can simply say "use loader.land" or "/loader-land" in 
 |---------|---------------|-------------|
 | Migration | No | Transfer settings between machines (6-char code, 24h expiry) |
 | MD Storage | No | Store/share any markdown (permanent, publicly browsable) |
-| Loader Tracker | Yes (API key) | Auto-track topics, build knowledge graphs |
 
 ---
 
@@ -596,110 +583,6 @@ Get raw template content as plain text (for direct file download).
 
 ---
 
-## Loader Tracker
-
-Loader Tracker automatically tracks topics, builds knowledge graphs, and generates content drafts.
-
-### When to Use Loader Tracker
-
-Users may trigger this feature by saying:
-- "幫我追蹤 X 的最新動態" (Track updates for X)
-- "Track [topic] updates for me"
-- "Monitor [topic] news"
-- "用 loader.land 追蹤 [主題]"
-- "Keep me updated on [topic]"
-
-### Public Endpoints (No Auth)
-
-#### GET /tracker
-List all public tracked topics with cursor pagination.
-
-**Query Parameters:**
-- `limit` (default 20, max 100)
-- `cursor` (optional, for pagination)
-- `keyword` (optional, search by name/keywords)
-
-**Response:**
-```json
-{{
-  "topics": [
-    {{
-      "id": 1,
-      "name": "AI Agents",
-      "description": "Latest AI agent developments",
-      "keywords": ["AI", "agents", "LLM"],
-      "status": "active",
-      "run_status": "ready",
-      "node_count": 150,
-      "edge_count": 280,
-      "sources_count": 45,
-      "created_at": "2024-01-01T00:00:00Z",
-      "updated_at": "2024-01-02T12:00:00Z",
-      "last_searched_at": "2024-01-02T11:00:00Z"
-    }}
-  ],
-  "next_cursor": "eyJpZCI6...",
-  "has_more": true
-}}
-```
-
-#### GET /tracker/{{topic_id}}
-Get a single public topic.
-
-#### GET /tracker/{{topic_id}}/latest
-Get the latest snapshot (knowledge graph + content) for a public topic.
-
-### Authenticated Endpoints (API Key Required)
-
-Header: `Authorization: Bearer ll_xxx...` (or read from `~/.claude/loader.key`)
-
-#### GET /api/tracker
-List all your tracked topics.
-
-#### POST /api/tracker
-Create a new tracked topic. Triggers immediate search in background.
-
-**Request:**
-```json
-{{
-  "name": "AI Agents",
-  "description": "Track the latest AI agent developments",
-  "keywords": ["AI", "agents", "LLM", "autonomous"],
-  "search_interval_hours": 24,
-  "is_public": true
-}}
-```
-
-**Response:**
-```json
-{{
-  "topic": {{ ... }},
-  "agent_hint": {{
-    "action": "remind_user",
-    "delay_minutes": 15,
-    "message": "Loader Tracker is now tracking 'AI Agents'. Results will be ready in about 15 minutes.",
-    "check_endpoint": "/tracker/1/latest"
-  }}
-}}
-```
-
-#### GET /api/tracker/{{topic_id}}
-Get a single topic (must be yours).
-
-#### PUT /api/tracker/{{topic_id}}
-Update a topic.
-
-#### DELETE /api/tracker/{{topic_id}}
-Delete a topic.
-
-#### POST /api/tracker/{{topic_id}}/run
-Manually trigger a topic search.
-
-#### GET /api/tracker/{{topic_id}}/snapshots
-List all snapshots for a topic.
-
-#### GET /api/tracker/{{topic_id}}/snapshots/{{timestamp}}
-Get a specific snapshot. Use `latest` for most recent.
 """.strip()
 
 
@@ -718,20 +601,18 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     init_db()
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
-    settings.snapshots_dir.mkdir(parents=True, exist_ok=True)
 
     with Session(engine) as session:
         cleanup_expired_backups(session)
 
     cleanup_task = asyncio.create_task(periodic_cleanup())
 
-    # Start Loader Tracker scheduler
-    start_scheduler()
+    # Start Dusk Agent worker
+    start_dusk_worker()
 
     yield
 
-    # Stop scheduler
-    stop_scheduler()
+    stop_dusk_worker()
 
     cleanup_task.cancel()
     try:
@@ -742,7 +623,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Cloud-Loader",
-    description="AI Agent Services - File Transfer, MD Storage & Loader Tracker",
+    description="AI Agent Services - File Transfer, MD Storage & Agent Hub",
     version="0.5.0",
     lifespan=lifespan,
 )
@@ -753,9 +634,6 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 app.include_router(api.router)
 app.include_router(auth.router)
-app.include_router(tracker_public.router)
-app.include_router(tracker_concepts.router)
-app.include_router(tracker_snapshots.router)
 
 
 def _is_ai_agent(request: Request) -> bool:
@@ -767,15 +645,18 @@ def _is_ai_agent(request: Request) -> bool:
 
 @app.get("/")
 def root(request: Request):
-    """Return API documentation or redirect browsers to human page."""
+    """Return API documentation or redirect browsers."""
     accept = request.headers.get("accept", "")
+    host = request.headers.get("host", "")
 
     # AI agents always get documentation
     if _is_ai_agent(request):
         return PlainTextResponse(get_api_documentation())
 
-    # Browsers explicitly request HTML first
+    # Browsers: loader.land → Hub, move.loader.land → Services
     if accept.startswith("text/html"):
+        if host.startswith("loader.land") or host.startswith("www.loader.land"):
+            return RedirectResponse("/hub", status_code=302)
         return RedirectResponse("/human", status_code=302)
 
     # API clients get plain text documentation
@@ -810,6 +691,361 @@ def sitemap_xml(request: Request):
     return templates.TemplateResponse(
         request, "sitemap.xml", {}, media_type="application/xml"
     )
+
+
+
+@app.get("/gallery")
+def gallery_page(request: Request):
+    """Browsable gallery of CLAUDE.md templates."""
+    with Session(engine) as session:
+        files, total = list_md_storage(session, limit=100, offset=0)
+        template_data = []
+        for f in files:
+            # Only show CLAUDE.md files in the gallery
+            if f.filename and "CLAUDE" in f.filename.upper():
+                preview = f.content[:300] if f.content else ""
+                template_data.append({
+                    "code": f.code,
+                    "filename": f.filename,
+                    "purpose": f.purpose,
+                    "preview": preview,
+                    "download_count": f.download_count,
+                    "content_size": f.content_size,
+                })
+        return templates.TemplateResponse(
+            request, "gallery.html", {
+                "base_url": settings.base_url,
+                "templates": template_data,
+                "total": len(template_data),
+            }
+        )
+
+
+@app.get("/agent-brainstorm")
+def agent_brainstorm_page(request: Request, page: int = 1):
+    """Daily brainstorm strategy timeline."""
+    per_page = 5
+    with Session(engine) as session:
+        from sqlmodel import func
+        total = session.exec(
+            select(func.count(BrainstormEntry.id))
+        ).one()
+        total_pages = max(1, math.ceil(total / per_page))
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * per_page
+        entries = session.exec(
+            select(BrainstormEntry)
+            .order_by(BrainstormEntry.created_at.desc())
+            .offset(offset)
+            .limit(per_page)
+        ).all()
+        return templates.TemplateResponse(
+            request, "brainstorm.html", {
+                "base_url": settings.base_url,
+                "entries": entries,
+                "page": page,
+                "total_pages": total_pages,
+                "total": total,
+            }
+        )
+
+
+@app.post("/templates")
+def create_template_legacy(request: Request, body: dict):
+    """Legacy template creation endpoint for seeding gallery."""
+    template_type = body.get("template_type", "CLAUDE.md")
+    title = body.get("title", "Untitled")
+    description = body.get("description", "")
+    content = body.get("content", "")
+
+    if not content:
+        return JSONResponse(status_code=400, content={"detail": "Content is required"})
+
+    with Session(engine) as session:
+        md = create_md_storage(
+            session=session,
+            content=content,
+            filename=template_type,
+            purpose=title,
+            install_path="project root",
+        )
+        return JSONResponse(content={
+            "code": md.code,
+            "message": f"Template '{title}' created successfully",
+        })
+
+
+# ---------------------------------------------------------------------------
+# Hub (unified page for both agents)
+# ---------------------------------------------------------------------------
+
+from cloud_loader.midnight_reader import (
+    answer_midnight_question,
+    get_midnight_ask_wake,
+    get_midnight_config,
+    get_midnight_memory_updated,
+    get_midnight_runs,
+)
+
+
+@app.get("/hub")
+def hub_page(request: Request):
+    """Unified Agent Hub - shows both Midnight and Dusk agents."""
+    # Midnight data (read-only from separate DB)
+    midnight_runs_raw = get_midnight_runs(limit=5)
+    midnight_asks_raw = get_midnight_ask_wake()
+    midnight_config = get_midnight_config()
+    midnight_memory = get_midnight_memory_updated()
+
+    # Check midnight running
+    midnight_running = any(r.get("status") == "running" for r in midnight_runs_raw)
+
+    # Compute midnight next run (estimated from last_run + interval)
+    midnight_next_run = None
+    if midnight_config and midnight_config.get("enabled") and midnight_config.get("last_run_at"):
+        try:
+            last = midnight_config["last_run_at"]
+            if isinstance(last, str):
+                last = datetime.fromisoformat(last)
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            interval_h = midnight_config.get("interval_hours", 12)
+            midnight_next_run = (last + timedelta(hours=interval_h)).astimezone(GMT8).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+
+    # Dusk next run (from scheduler)
+    dusk_next_run = _dusk_next_run_gmt8()
+
+    # Dusk data (own DB)
+    with Session(engine) as session:
+        dusk_runs_db = session.exec(
+            select(DuskRun).order_by(DuskRun.created_at.desc()).limit(5)
+        ).all()
+        dusk_config = session.exec(select(DuskConfig)).first()
+        dusk_asks_db = session.exec(
+            select(DuskAskWake).order_by(DuskAskWake.asked_at.desc())
+        ).all()
+        dusk_running_entry = session.exec(
+            select(DuskRun).where(DuskRun.status == DuskRunStatus.RUNNING)
+        ).first()
+
+    dusk_running = dusk_running_entry is not None
+
+    dusk_memory_path = Path("/home/wake/DUSK-MEMORY.md")
+    dusk_memory = None
+    if dusk_memory_path.exists():
+        mtime = dusk_memory_path.stat().st_mtime
+        dusk_memory = datetime.fromtimestamp(mtime, tz=timezone.utc)
+
+    # Merge Ask Wake entries
+    all_unanswered = []
+    all_answered = []
+
+    for e in midnight_asks_raw:
+        entry = {
+            "agent": "midnight",
+            "id": e["id"],
+            "question": e["question"],
+            "context": e.get("context", ""),
+            "answer": e.get("answer"),
+            "asked_at": str(e["asked_at"])[:16] if e["asked_at"] else "",
+        }
+        if e.get("is_answered"):
+            all_answered.append(entry)
+        else:
+            all_unanswered.append(entry)
+
+    for e in dusk_asks_db:
+        entry = {
+            "agent": "dusk",
+            "id": e.id,
+            "question": e.question,
+            "context": e.context or "",
+            "answer": e.answer,
+            "asked_at": e.asked_at.strftime("%Y-%m-%d %H:%M") if e.asked_at else "",
+        }
+        if e.is_answered:
+            all_answered.append(entry)
+        else:
+            all_unanswered.append(entry)
+
+    # Merge runs (interleave by time)
+    all_runs = []
+    for r in midnight_runs_raw:
+        all_runs.append({
+            "agent": "midnight",
+            "id": r["id"],
+            "title": r["title"],
+            "summary": r.get("summary", ""),
+            "content": r.get("content", ""),
+            "status": r.get("status", "success"),
+            "duration_seconds": r.get("duration_seconds"),
+            "created_at": str(r["created_at"])[:16] if r["created_at"] else "",
+            "sort_key": str(r.get("created_at", "")),
+        })
+
+    for r in dusk_runs_db:
+        all_runs.append({
+            "agent": "dusk",
+            "id": r.id,
+            "title": r.title,
+            "summary": r.summary or "",
+            "content": r.content or "",
+            "status": r.status,
+            "duration_seconds": r.duration_seconds,
+            "created_at": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+            "sort_key": r.created_at.isoformat() if r.created_at else "",
+        })
+
+    all_runs.sort(key=lambda x: x["sort_key"], reverse=True)
+    all_runs = all_runs[:10]
+
+    return templates.TemplateResponse(
+        request, "hub.html", {
+            "midnight_config": midnight_config,
+            "dusk_config": dusk_config,
+            "midnight_memory": midnight_memory,
+            "dusk_memory": dusk_memory,
+            "midnight_running": midnight_running,
+            "dusk_running": dusk_running,
+            "midnight_next_run": midnight_next_run,
+            "dusk_next_run": dusk_next_run,
+            "all_unanswered": all_unanswered,
+            "all_answered": all_answered[:10],
+            "unanswered_count": len(all_unanswered),
+            "all_runs": all_runs,
+        }
+    )
+
+
+@app.post("/hub/answer")
+def hub_answer_question(
+    request: Request,
+    agent: str = Form(...),
+    entry_id: int = Form(...),
+    answer: str = Form(...),
+):
+    """Answer a question from either agent via the Hub."""
+    if agent == "midnight":
+        answer_midnight_question(entry_id, answer)
+    elif agent == "dusk":
+        with Session(engine) as session:
+            entry = session.get(DuskAskWake, entry_id)
+            if entry:
+                entry.answer = answer
+                entry.is_answered = True
+                entry.answered_at = datetime.now(timezone.utc)
+                session.commit()
+    return RedirectResponse("/hub", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Dusk Agent routes
+# ---------------------------------------------------------------------------
+
+DUSK_MEMORY_PATH = Path("/home/wake/DUSK-MEMORY.md")
+GMT8 = timezone(timedelta(hours=8))
+
+
+def _dusk_next_run_gmt8() -> str | None:
+    nrt = get_dusk_next_run_time()
+    if nrt:
+        return nrt.astimezone(GMT8).strftime("%Y-%m-%d %H:%M")
+    return None
+
+
+@app.get("/dusk")
+def dusk_page(request: Request, page: int = 1):
+    """Dusk Agent dashboard."""
+    per_page = 10
+    with Session(engine) as session:
+        from sqlmodel import func
+
+        total = session.exec(select(func.count(DuskRun.id))).one()
+        total_pages = max(1, math.ceil(total / per_page))
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * per_page
+
+        runs = session.exec(
+            select(DuskRun)
+            .order_by(DuskRun.created_at.desc())
+            .offset(offset)
+            .limit(per_page)
+        ).all()
+
+        config = session.exec(select(DuskConfig)).first()
+
+        agent_running = session.exec(
+            select(DuskRun).where(DuskRun.status == DuskRunStatus.RUNNING)
+        ).first()
+
+        ask_entries = session.exec(
+            select(DuskAskWake).order_by(DuskAskWake.asked_at.desc())
+        ).all()
+
+        memory_updated = None
+        if DUSK_MEMORY_PATH.exists():
+            mtime = DUSK_MEMORY_PATH.stat().st_mtime
+            memory_updated = datetime.fromtimestamp(mtime, tz=timezone.utc)
+
+        return templates.TemplateResponse(
+            request, "dusk.html", {
+                "runs": runs,
+                "page": page,
+                "total_pages": total_pages,
+                "total": total,
+                "config": config,
+                "next_run": _dusk_next_run_gmt8(),
+                "ask_entries": ask_entries,
+                "agent_running": agent_running is not None,
+                "memory_updated": memory_updated,
+            }
+        )
+
+
+@app.post("/dusk/settings")
+def dusk_update_settings(
+    request: Request,
+    interval_hours: float = Form(...),
+    enabled: bool = Form(default=False),
+):
+    """Update Dusk worker settings."""
+    interval_hours = max(4.0, interval_hours)
+    with Session(engine) as session:
+        config = session.exec(select(DuskConfig)).first()
+        if config:
+            config.interval_hours = interval_hours
+            config.enabled = enabled
+            config.updated_at = datetime.now(timezone.utc)
+            session.commit()
+
+    if enabled:
+        reschedule_dusk_worker(interval_hours)
+
+    return RedirectResponse("/dusk", status_code=303)
+
+
+@app.post("/dusk/trigger")
+async def dusk_trigger_run(request: Request):
+    """Manually trigger a Dusk agent run."""
+    from cloud_loader.dusk_worker import run_dusk_pipeline
+
+    asyncio.create_task(run_dusk_pipeline())
+    return RedirectResponse("/dusk", status_code=303)
+
+
+@app.post("/dusk/ask-wake/{entry_id}/answer")
+def dusk_answer_question(request: Request, entry_id: int, answer: str = Form(...)):
+    """Wake answers a Dusk agent question."""
+    with Session(engine) as session:
+        entry = session.get(DuskAskWake, entry_id)
+        if entry:
+            entry.answer = answer
+            entry.is_answered = True
+            entry.answered_at = datetime.now(timezone.utc)
+            session.commit()
+    return RedirectResponse("/dusk", status_code=303)
 
 
 def main():

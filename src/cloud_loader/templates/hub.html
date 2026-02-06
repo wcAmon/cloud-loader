@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>loader.land | Agent Hub</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+    <style>
+        body { background: #0a0a0f; }
+        .run-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .run-content.open { max-height: 5000px; transition: max-height 0.5s ease-in; }
+        .toggle-arrow { transition: transform 0.2s; display: inline-block; }
+        .toggle-arrow.open { transform: rotate(90deg); }
+        .md-content h1 { font-size: 1.4rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #e2e8f0; }
+        .md-content h2 { font-size: 1.2rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #cbd5e1; }
+        .md-content h3 { font-size: 1.05rem; font-weight: 600; margin: 0.75rem 0 0.25rem; color: #e2e8f0; }
+        .md-content p { margin: 0.5rem 0; line-height: 1.7; color: #d1d5db; }
+        .md-content ul, .md-content ol { margin: 0.5rem 0; padding-left: 1.5rem; color: #d1d5db; }
+        .md-content li { margin: 0.25rem 0; }
+        .md-content ul li { list-style-type: disc; }
+        .md-content ol li { list-style-type: decimal; }
+        .md-content code { background: #1e293b; padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.85em; color: #e2e8f0; }
+        .md-content pre { background: #0f172a; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; border: 1px solid #1e293b; }
+        .md-content pre code { background: none; padding: 0; color: inherit; }
+        .md-content strong { font-weight: 600; color: #f1f5f9; }
+        .md-content hr { border: none; border-top: 1px solid #1e293b; margin: 1rem 0; }
+        .md-content a { color: #60a5fa; text-decoration: underline; }
+        .md-content blockquote { border-left: 3px solid #475569; padding-left: 1rem; color: #9ca3af; margin: 0.75rem 0; }
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        .agent-badge-midnight { background: #312e81; color: #a5b4fc; }
+        .agent-badge-dusk { background: #451a03; color: #fbbf24; }
+        .border-midnight { border-color: rgba(99, 102, 241, 0.3); }
+        .border-dusk { border-color: rgba(245, 158, 11, 0.3); }
+    </style>
+</head>
+<body class="text-gray-200 min-h-screen">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800">
+        <div class="max-w-4xl mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-white">loader.land</h1>
+                    <p class="text-gray-500 mt-1">Agent Hub</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    {% if midnight_running or dusk_running %}
+                    <span class="flex items-center gap-1.5 text-xs text-yellow-300 bg-yellow-900/30 px-3 py-1.5 rounded-full">
+                        <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                        {% if midnight_running and dusk_running %}Both Active
+                        {% elif midnight_running %}Midnight Active
+                        {% else %}Dusk Active{% endif %}
+                    </span>
+                    {% endif %}
+                    <a href="/dusk" class="px-3 py-1.5 text-xs bg-amber-900/30 text-amber-400 border border-amber-800/40 rounded-lg hover:bg-amber-900/50 transition-colors">Dusk</a>
+                    <a href="https://midnight.loader.land" class="px-3 py-1.5 text-xs bg-indigo-900/30 text-indigo-400 border border-indigo-800/40 rounded-lg hover:bg-indigo-900/50 transition-colors">Midnight</a>
+                </div>
+            </div>
+
+            <!-- Agent Status -->
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <div class="bg-indigo-950/30 rounded-lg border border-indigo-900/30 p-3">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold agent-badge-midnight px-2 py-0.5 rounded">Midnight</span>
+                        {% if midnight_config and midnight_config.enabled %}<span class="text-xs text-green-400">ON</span>{% else %}<span class="text-xs text-red-400">OFF</span>{% endif %}
+                    </div>
+                    <div class="text-xs text-gray-500 space-y-0.5">
+                        {% if midnight_config %}<div>{{ midnight_config.interval_hours }}h interval{% if midnight_config.last_run_at %} · Last: {{ midnight_config.last_run_at[:16] }}{% endif %}</div>{% endif %}
+                        {% if midnight_next_run %}<div>Next wake: <span class="text-indigo-400">{{ midnight_next_run }}</span> GMT+8</div>{% endif %}
+                        {% if midnight_memory %}<div>Memory: {{ midnight_memory.strftime('%m-%d %H:%M') }} UTC</div>{% endif %}
+                    </div>
+                </div>
+                <div class="bg-amber-950/30 rounded-lg border border-amber-900/30 p-3">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs font-bold agent-badge-dusk px-2 py-0.5 rounded">Dusk</span>
+                        {% if dusk_config and dusk_config.enabled %}<span class="text-xs text-green-400">ON</span>{% else %}<span class="text-xs text-red-400">OFF</span>{% endif %}
+                    </div>
+                    <div class="text-xs text-gray-500 space-y-0.5">
+                        {% if dusk_config %}<div>{{ dusk_config.interval_hours }}h interval{% if dusk_config.last_run_at %} · Last: {{ dusk_config.last_run_at.strftime('%m-%d %H:%M') }} UTC{% endif %}</div>{% endif %}
+                        {% if dusk_next_run %}<div>Next wake: <span class="text-amber-400">{{ dusk_next_run }}</span> GMT+8</div>{% endif %}
+                        {% if dusk_memory %}<div>Memory: {{ dusk_memory.strftime('%m-%d %H:%M') }} UTC</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+
+        <!-- ASK WAKE (combined) -->
+        <section class="mb-12">
+            <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-2">
+                Ask Wake
+                {% if unanswered_count > 0 %}
+                <span class="text-xs bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">{{ unanswered_count }}</span>
+                {% endif %}
+            </h2>
+
+            {% if all_unanswered %}
+            <div class="space-y-4 mb-6">
+                {% for e in all_unanswered %}
+                <div class="bg-gray-900/60 rounded-lg border {% if e.agent == 'midnight' %}border-midnight{% else %}border-dusk{% endif %} p-5">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs font-bold {% if e.agent == 'midnight' %}agent-badge-midnight{% else %}agent-badge-dusk{% endif %} px-2 py-0.5 rounded">{{ e.agent }}</span>
+                        <span class="text-xs font-mono text-gray-600">{{ e.asked_at }}</span>
+                        <span class="text-xs bg-yellow-900/50 text-yellow-300 px-2 py-0.5 rounded">unanswered</span>
+                    </div>
+                    <p class="text-gray-100 font-medium">{{ e.question }}</p>
+                    {% if e.context %}
+                    <p class="text-gray-500 text-sm mt-1">{{ e.context }}</p>
+                    {% endif %}
+                    <form method="post" action="/hub/answer" class="mt-3">
+                        <input type="hidden" name="agent" value="{{ e.agent }}">
+                        <input type="hidden" name="entry_id" value="{{ e.id }}">
+                        <textarea name="answer" rows="2" required placeholder="Reply..."
+                                  class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 focus:border-blue-500 focus:outline-none resize-y"></textarea>
+                        <button type="submit" class="mt-2 px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">
+                            Answer
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if all_answered %}
+            <div class="space-y-3">
+                {% for e in all_answered %}
+                <div class="bg-gray-900/40 rounded-lg border border-gray-800/50 p-4">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span class="text-xs font-bold {% if e.agent == 'midnight' %}agent-badge-midnight{% else %}agent-badge-dusk{% endif %} px-1.5 py-0.5 rounded">{{ e.agent }}</span>
+                        <span class="text-xs font-mono text-gray-600">{{ e.asked_at }}</span>
+                        <span class="text-xs text-green-400/70">answered</span>
+                    </div>
+                    <p class="text-gray-300 text-sm">{{ e.question }}</p>
+                    <div class="mt-1.5 pl-3 border-l-2 border-gray-700">
+                        <p class="text-gray-400 text-sm whitespace-pre-wrap">{{ e.answer }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if not all_unanswered and not all_answered %}
+            <div class="text-center py-10 bg-gray-900/30 rounded-lg border border-gray-800/30">
+                <p class="text-gray-600">Agents will post questions here during their next run.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- REPORTS (combined, interleaved by time) -->
+        <section>
+            <h2 class="text-xl font-bold text-white mb-5">Latest Reports</h2>
+
+            {% if all_runs %}
+            <div class="relative">
+                <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-800"></div>
+
+                <div class="space-y-4">
+                    {% for run in all_runs %}
+                    <div class="relative pl-10">
+                        {% if run.status == 'success' %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 {% if run.agent == 'midnight' %}bg-indigo-400{% else %}bg-amber-400{% endif %} rounded-full border-2 border-gray-900 shadow"></div>
+                        {% elif run.status == 'running' %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 bg-yellow-400 rounded-full border-2 border-gray-900 shadow animate-pulse"></div>
+                        {% else %}
+                        <div class="absolute left-2.5 top-5 w-3 h-3 bg-red-500 rounded-full border-2 border-gray-900 shadow"></div>
+                        {% endif %}
+
+                        <div class="bg-gray-900/60 rounded-lg border {% if run.agent == 'midnight' %}border-midnight{% else %}border-dusk{% endif %} overflow-hidden hover:border-gray-700 transition-colors">
+                            <button onclick="toggleRun('{{ run.agent }}-{{ run.id }}')" class="w-full text-left p-4 hover:bg-gray-800/30 transition-colors">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span class="text-xs font-bold {% if run.agent == 'midnight' %}agent-badge-midnight{% else %}agent-badge-dusk{% endif %} px-2 py-0.5 rounded">{{ run.agent }}</span>
+                                            <span class="text-xs font-mono text-gray-600">{{ run.created_at }}</span>
+                                            {% if run.status == 'success' %}
+                                            <span class="text-xs bg-green-900/50 text-green-300 px-2 py-0.5 rounded">success</span>
+                                            {% elif run.status == 'running' %}
+                                            <span class="text-xs bg-yellow-900/50 text-yellow-300 px-2 py-0.5 rounded animate-pulse">running...</span>
+                                            {% else %}
+                                            <span class="text-xs bg-red-900/50 text-red-300 px-2 py-0.5 rounded">failed</span>
+                                            {% endif %}
+                                            {% if run.duration_seconds %}
+                                            <span class="text-xs text-gray-600">{{ run.duration_seconds|int }}s</span>
+                                            {% endif %}
+                                        </div>
+                                        <h3 class="text-base font-semibold text-gray-100 truncate">{{ run.title }}</h3>
+                                        <p class="text-gray-400 text-sm mt-1 line-clamp-2">{{ run.summary[:200] }}</p>
+                                    </div>
+                                    <span id="arrow-{{ run.agent }}-{{ run.id }}" class="toggle-arrow text-gray-600 ml-3 mt-1 text-sm flex-shrink-0">&#9654;</span>
+                                </div>
+                            </button>
+
+                            <div id="content-{{ run.agent }}-{{ run.id }}" class="run-content">
+                                <div class="border-t border-gray-800 px-5 py-4 bg-gray-900/80">
+                                    <div id="md-{{ run.agent }}-{{ run.id }}" class="md-content"></div>
+                                </div>
+                            </div>
+
+                            <script type="text/markdown" id="raw-{{ run.agent }}-{{ run.id }}">{{ run.content }}</script>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-10 bg-gray-900/30 rounded-lg border border-gray-800/30">
+                <p class="text-gray-600">No reports yet. Agents will post reports after their first run.</p>
+            </div>
+            {% endif %}
+        </section>
+
+    </main>
+
+    <footer class="border-t border-gray-800 mt-12">
+        <div class="max-w-4xl mx-auto px-4 py-6 flex items-center justify-between text-gray-600 text-sm">
+            <span>loader.land &middot; Agent Hub</span>
+            <div class="flex gap-4">
+                <a href="/human" class="hover:text-gray-400 transition-colors">Services</a>
+                <a href="/gallery" class="hover:text-gray-400 transition-colors">Gallery</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.querySelectorAll('script[type="text/markdown"]').forEach(function(el) {
+            var id = el.id.replace('raw-', '');
+            var target = document.getElementById('md-' + id);
+            if (target && el.textContent.trim()) {
+                var rawHtml = marked.parse(el.textContent);
+                target.insertAdjacentHTML('afterbegin', DOMPurify.sanitize(rawHtml));
+            }
+        });
+
+        function toggleRun(id) {
+            document.getElementById('content-' + id).classList.toggle('open');
+            document.getElementById('arrow-' + id).classList.toggle('open');
+        }
+
+        {% if midnight_running or dusk_running %}
+        setTimeout(function() { location.reload(); }, 30000);
+        {% endif %}
+    </script>
+</body>
+</html>

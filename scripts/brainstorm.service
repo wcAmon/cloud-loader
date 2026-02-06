@@ -1,0 +1,27 @@
+# Agent Brainstorm Worker - systemd service
+# Install:
+#   cp scripts/brainstorm.service ~/.config/systemd/user/
+#   cp scripts/brainstorm.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now brainstorm.timer
+#   systemctl --user status brainstorm.timer
+#
+# Manual run:
+#   systemctl --user start brainstorm.service
+#
+# View logs:
+#   journalctl --user -u brainstorm.service -f
+
+[Unit]
+Description=Agent Brainstorm Worker - Daily Claude strategy generation
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wake/cloud-loader
+ExecStart=/home/wake/.local/bin/uv run python scripts/brainstorm_worker.py
+Environment=PATH=/home/wake/.local/bin:/usr/local/bin:/usr/bin:/bin
+TimeoutStartSec=2400
+
+[Install]
+WantedBy=default.target
